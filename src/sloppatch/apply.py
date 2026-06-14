@@ -68,34 +68,22 @@ def _is_line_in_ranges(idx: int, range_list: List[Tuple[int, int]]) -> bool:
     return False
 
 @dataclasses.dataclass
-class PreparedHunkData(HunkData):
-    masks: List[str]
-
-@dataclasses.dataclass
-class PreparedHunk(Hunk):
+class MaskedHunk(Hunk):
     before_masks: List[str]
 
+@dataclasses.dataclass
+class PreparedHunk(MaskedHunk):
+    beginning_source_line_nmb: int
+    synced_after_lines: List[str]
 
 PreparedPatch = List[PreparedHunk]
+"""
+Does not contain empty hunks
+"""
 
-
-@dataclasses.dataclass
-class PreparePatchResult:
-    patch: PreparedPatch
-    """
-    Does not contain empty hunks
-    """
-
-    line_ranges: List[Tuple[int, int]]
-    """
-    The beginning included, the end is excluded
-    """
-
-    file_cache: SparsePatchFile
-
-def prepare_hunk(hunk: Hunk, cfg: PatchConfig) -> PreparedHunk:
+def prepare_masked_hunk(hunk: Hunk, cfg: PatchConfig) -> MaskedHunk:
     lines = hunk.before.lines
-    return PreparedHunk(
+    return MaskedHunk(
         before_masks=[
             _line_to_mask(line, cfg)
             for line in lines
@@ -107,17 +95,17 @@ def prepare_hunk(hunk: Hunk, cfg: PatchConfig) -> PreparedHunk:
         changes=hunk.changes,
     )
 
-def prepare_patch(patch: Patch, cfg: PatchConfig) -> PreparedPatch:
-    result_patch: PreparedPatch = []
+def prepare_masked_patch(patch: Patch, cfg: PatchConfig) -> List[MaskedHunk]:
+    result_patch: List[MaskedHunk] = []
     for hunk in patch:
         if len(hunk.before.lines) == 0 and len(hunk.after.lines) == 0:
             continue
 
-        result_patch.append(prepare_hunk(hunk, cfg))
+        result_patch.append(prepare_masked_hunk(hunk, cfg))
 
     return result_patch
 
-def prepare_patch_lines(patch: PreparedPatch, cfg: PatchConfig, lines_itr: Iterable[str]) -> PreparePatchResult:
+def prepare_file_cache(patch: List[MaskedHunk], cfg: PatchConfig, lines_itr: Iterable[str]) -> SparsePatchFile:
     """
     Prepares data for patch
 
@@ -125,11 +113,7 @@ def prepare_patch_lines(patch: PreparedPatch, cfg: PatchConfig, lines_itr: Itera
     """
 
     if len(patch) == 0:
-        return PreparePatchResult(
-            patch=[],
-            line_ranges=[],
-            file_cache=SparsePatchFile(),
-        )
+        return SparsePatchFile()
 
     fuzz_line_ranges: List[Tuple[int, int]] = []
     for hunk in patch:
@@ -154,21 +138,16 @@ def prepare_patch_lines(patch: PreparedPatch, cfg: PatchConfig, lines_itr: Itera
             mask = _line_to_mask(line, cfg)
             file_cache.add_new_line(line_idx, line, mask)
 
-    return PreparePatchResult(
-        patch=patch,
-        line_ranges=fuzz_line_ranges,
-        file_cache=file_cache,
-    )
+    return file_cache
 
-def hunk_begin_line_range(hunk: PreparedHunk, file: SparsePatchFile, cfg: PatchConfig) -> Tuple[int, int]:
+def hunk_begin_line_range(hunk: MaskedHunk, file: SparsePatchFile, cfg: PatchConfig) -> Tuple[int, int]:
     file_lines_end = file.get_lines_end()
     return (
         max(hunk.before.line - cfg.fuzz_context_lines, 1),
         min(hunk.before.line + cfg.fuzz_context_lines, file_lines_end),
     )
 
-
-def hunk_line_index(hunk: PreparedHunk, file: SparsePatchFile, cfg: PatchConfig) -> Tuple[int, List[str]]:
+def hunk_line_index(hunk: MaskedHunk, file: SparsePatchFile, cfg: PatchConfig) -> int:
     """
     Returns line number and hunk original lines array
     """
@@ -181,10 +160,7 @@ def hunk_line_index(hunk: PreparedHunk, file: SparsePatchFile, cfg: PatchConfig)
         range(range_begin, hunk.before.line - 1),
         range(hunk.before.line+1, range_end),
     )
-    original_lines: List[str] = []
     for line_idx in lines_to_check:
-        original_lines = []
-
         for i, hunk_line in enumerate(hunk.before_masks):
             file_line = line_idx + i
             if file_line >= file_lines_end:
@@ -199,12 +175,11 @@ def hunk_line_index(hunk: PreparedHunk, file: SparsePatchFile, cfg: PatchConfig)
 
             if d[1] != hunk_line:
                 break
-            original_lines.append(d[0])
         
         else:
-            return line_idx, original_lines
+            return line_idx
         
-    return -1, []
+    return -1
 
 class ValidatePatchLinesError(SloppatchError):
     pass
@@ -228,24 +203,19 @@ def hunk_new_after_lines(hunk: Hunk, original_before_lines: List[str]) -> List[s
     
     return new_lines
 
-# TODO: i don't like naming here. 
-# It is not just a validator, it prepares the hunk positions based on the file's cache
-def raise_validate_patch_lines(prepared_data: PreparePatchResult, cfg: PatchConfig) -> Tuple[List[int], List[List[str]]]:
+def prepare_patch_final(patch: List[MaskedHunk], file_cache: SparsePatchFile, cfg: PatchConfig) -> PreparedPatch:
     """
     Validates patch. If something happens -- throws an error.
     Returns list of lines of beginnings of hunks. The same length as List[Hunk]
     """
-    patch = prepared_data.patch
-    file = prepared_data.file_cache
 
     apply_line_idxs = [-1] * len(patch)
-    new_after_lines_list: List[List[str]] = [[]] * len(patch)
 
     for i, hunk in enumerate(patch):
-        idx, original_lines = hunk_line_index(hunk, file, cfg)
+        idx = hunk_line_index(hunk, file_cache, cfg)
 
         if idx == -1:
-            range_begin, range_end = hunk_begin_line_range(hunk, file, cfg)
+            range_begin, range_end = hunk_begin_line_range(hunk, file_cache, cfg)
             raise ValidatePatchLinesError(
                 "Unable to find hunk application line. "+
                 f"Hunk: {hunk.str_header()}. "
@@ -253,8 +223,8 @@ def raise_validate_patch_lines(prepared_data: PreparePatchResult, cfg: PatchConf
             )
         
         apply_line_idxs[i] = idx
-        new_after_lines_list[i] = hunk_new_after_lines(hunk, original_lines)
-    
+
+    # Validation: there must be no overlaps
     for i, (line_i, hunk) in enumerate(zip(apply_line_idxs, patch)):
         range_begin = line_i
         range_end = line_i + len(hunk.before.lines)
@@ -273,59 +243,52 @@ def raise_validate_patch_lines(prepared_data: PreparePatchResult, cfg: PatchConf
                     f"Hunk2: {inner_hunk.str_header()}, placement range: ({inner_begin},{inner_end})."
                 )
 
-    return apply_line_idxs, new_after_lines_list
+    new_patch: List[PreparedHunk] = []
+    for line_i, hunk in zip(apply_line_idxs, patch):
+        original_lines = [
+            v[0]
+            for v in [
+                file_cache.get_line_mask(line_idx)
+                for line_idx in range(line_i, line_i + len(hunk.before.lines))
+            ]
+            if v is not None
+        ]
+        assert len(original_lines) == len(hunk.before.lines)
+
+        new_hunk = PreparedHunk(
+            before=hunk.before,
+            after=hunk.after,
+            changes=hunk.changes,
+            comment=hunk.comment,
+            before_masks=hunk.before_masks,
+            beginning_source_line_nmb=line_i,
+            synced_after_lines=hunk_new_after_lines(hunk, original_lines),
+        )
+        new_patch.append(new_hunk)
+
+        assert len(new_hunk.synced_after_lines) == len(new_hunk.after.lines)
+
+    return new_patch
+
 
 class ApplyPatchError(SloppatchError):
     pass
 
-
 ChangesGroup = List[List[RawChange]]
 
-def apply_patch(prepared_data: PreparePatchResult, cfg: PatchConfig, lines_itr: Iterable[str]) -> Iterator[str]:
+def apply_patch(patch: PreparedPatch, lines_itr: Iterable[str]) -> Iterator[str]:
     """
     Returns line-by-line content of the file.
     We do not check the lines here. We assume, that they are the same as in file_cache
     """
-    @dataclasses.dataclass
-    class CurHunk:
-        hunk: PreparedHunk
-        change_idx: int
-        # changes_group: ChangesGroup
-        # """
-        # Grouped changes by line. 
-        # The first element must be Delete, Context or Add (if Add is the first change).
-        # Next elements must be Add (if presented)
-        # """
 
-        new_after_lines: List[str]
-
-    # Cache 
-    changes_after_cache: List[ChangesGroup] = []
-    for hunk in prepared_data.patch:
-        changes_after: ChangesGroup = []
-        # Assume that PreparedPatch does not contain empty Hunks
-        for c in hunk.changes:
-            if c.act.is_before():
-                changes_after.append([c])
-            else:   # c.act == RawAct.Add
-                if not changes_after:   # If the Add is the first line
-                    # TODO: check that the Add is not the first in the Hunk!!!!
-                    changes_after.append([])
-                changes_after[-1].append(c)
-
-        changes_after_cache.append(changes_after)
-
-        # Verify lengths just in case
-        assert len(hunk.before.lines) == len(hunk.before_masks)
-        assert 0 <= len(changes_after) - len(hunk.before.lines) <= 1
-
-    # Get line numbers of every hunk
-    apply_line_idxs, ready_after_lines = raise_validate_patch_lines(prepared_data, cfg)
-    assert len(ready_after_lines) == len(ready_after_lines)
-    assert len(apply_line_idxs) == len(prepared_data.patch)
+    apply_line_nmbs = [
+        hunk.beginning_source_line_nmb
+        for hunk in patch
+    ]
 
     # Application main loop
-    line_idx: int = -1
+    line_nmb: int = -1
     skip_lines: int = 0
     applied_hunks: int = 0
     for i, line in enumerate(lines_itr):
@@ -333,21 +296,20 @@ def apply_patch(prepared_data: PreparePatchResult, cfg: PatchConfig, lines_itr: 
             skip_lines -= 1
             continue
 
-        line_idx = i + 1
+        line_nmb = i + 1
         try:
-            hunk_begin_idx = apply_line_idxs.index(line_idx)
+            hunk_begin_idx = apply_line_nmbs.index(line_nmb)
         except ValueError:
             # Not found
             yield line
             continue
         
-        cur_hunk = prepared_data.patch[hunk_begin_idx]
-        new_after_lines=ready_after_lines[hunk_begin_idx]
+        cur_hunk = patch[hunk_begin_idx]
         # What if hunk contains 0 lines
         skip_lines = len(cur_hunk.before.lines) - 1
         applied_hunks += 1
 
-        for new_line in new_after_lines:
+        for new_line in cur_hunk.synced_after_lines:
             yield new_line
 
         if skip_lines == -1:
@@ -355,7 +317,7 @@ def apply_patch(prepared_data: PreparePatchResult, cfg: PatchConfig, lines_itr: 
             yield line
 
 
-    expected_applied_hunks = len(prepared_data.patch)
+    expected_applied_hunks = len(patch)
     if applied_hunks != expected_applied_hunks:
         raise SloppatchInternalError("Not all patches were applied. " +
                                      f"Expected: {expected_applied_hunks}, Applied: {applied_hunks}")
