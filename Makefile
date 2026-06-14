@@ -4,4 +4,4 @@ test:
 	pytest tests
 
 mypy:
-	mypy .
+	mypy . --check-untyped-defs

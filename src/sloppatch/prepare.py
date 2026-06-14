@@ -135,6 +135,7 @@ def raise_validate_raw_patch(raw_patch: RawPatch) -> None:
         keys_to_check = keys[:keys_to_check_idx]
         delta = sum(deltas[v] for v in keys_to_check)
 
+        # TODO: use cfg to force recalculate
         if hunk.before.line + delta != hunk.after.line:
             raise RawPatchValidationError(
                 raw_patch,

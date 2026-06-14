@@ -65,9 +65,9 @@ def lines_to_raw_changes(
                 if cfg_ready.skip_orphaned_changes: continue
                 raise LineParseError(
                     f"Change without hunk on line {line_idx}. "
-                    f"Line beginning: '{line[:5]}'"
+                    f"Line beginning: '{line[:16]}'..."
                 )
-            current_hunk = result[len(result) - 1]
+            current_hunk = result[-1]
             change = RawChange(
                 act=char_to_act(change_m.group(1)),
                 line=change_m.group(2)
@@ -78,7 +78,7 @@ def lines_to_raw_changes(
         if cfg_ready.skip_wrong_format_lines: continue
         raise LineParseError(
             f"Line {line_idx} with wrong format. "
-            f"Line beginning: '{line[:5]}'"
+            f"Line beginning: '{line[:16]}'..."
         )
     
     return result

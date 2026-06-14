@@ -1,5 +1,6 @@
 import dataclasses
 import enum
+import functools
 import re
 from typing import Generator, Iterable, Iterator, List, Optional, Sequence, Tuple, Type
 from .prepare import HunkData, Patch, Hunk
@@ -36,6 +37,9 @@ class SparsePatchFile:
         - creating a new range
         """
 
+        self.get_line_mask.cache_clear()
+        self.get_lines_end.cache_clear()
+
         ranges_len = len(self._ranges)
         if ranges_len != 0:
             last_range = self._ranges[ranges_len - 1]
@@ -66,6 +70,7 @@ class SparsePatchFile:
             masks=[mask]
         ))
 
+    @functools.lru_cache(maxsize=1024)
     def get_line_mask(self, line_idx: int) -> Optional[Tuple[str, str]]:
         """
         Returns line and its mask
@@ -81,7 +86,8 @@ class SparsePatchFile:
             return (r.lines[idx], r.masks[idx])
 
         return None
-    
+
+    @functools.lru_cache()
     def get_lines_end(self) -> int:
         """
         The last line number (exclusively, counts from 1)
