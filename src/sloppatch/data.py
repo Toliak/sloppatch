@@ -4,9 +4,9 @@ from typing import List
 
 
 class RawAct(enum.Enum):
-    Context = 'Context'
-    Add = 'Add'
-    Delete = 'Delete'
+    Context = "Context"
+    Add = "Add"
+    Delete = "Delete"
 
     def is_after(self):
         return self == RawAct.Context or self == RawAct.Add
@@ -14,12 +14,15 @@ class RawAct(enum.Enum):
     def is_before(self):
         return self == RawAct.Context or self == RawAct.Delete
 
+
 @dataclasses.dataclass(frozen=True)
 class RawChange:
     act: RawAct
     line: str
 
+
 RawHunkChanges = List[RawChange]
+
 
 @dataclasses.dataclass(frozen=True)
 class RawHunkData:
@@ -28,7 +31,7 @@ class RawHunkData:
     Line in the text to begin with
     """
     length: int
-    
+
 
 @dataclasses.dataclass
 class RawHunk:
@@ -43,6 +46,7 @@ class RawHunk:
 
 RawPatch = List[RawHunk]
 
+
 @dataclasses.dataclass
 class HunkData:
     line: int
@@ -51,6 +55,7 @@ class HunkData:
     """
 
     lines: List[str]
+
 
 @dataclasses.dataclass
 class Hunk:
@@ -64,8 +69,8 @@ class Hunk:
 
     def str_header(self) -> str:
         return (
-            f"@@ -{self.before.line},{len(self.before.lines)} " +
-            f"+{self.after.line},{len(self.after.lines)} @@"
+            f"@@ -{self.before.line},{len(self.before.lines)} "
+            + f"+{self.after.line},{len(self.after.lines)} @@"
         )
 
 

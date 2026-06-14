@@ -2,7 +2,13 @@ from typing import Callable, Iterator, Optional
 
 from sloppatch.prepare import raw_patch_convert
 
-from .apply import PatchConfig, apply_patch, prepare_masked_patch, prepare_file_cache, prepare_patch_final
+from .apply import (
+    PatchConfig,
+    apply_patch,
+    prepare_masked_patch,
+    prepare_file_cache,
+    prepare_patch_final,
+)
 from .parse import LineParseConfig, lines_to_raw_changes
 
 
@@ -16,7 +22,7 @@ def full_pipeline(
     parse_config_ready = parse_config if parse_config is not None else LineParseConfig()
     patch_config_ready = patch_config if patch_config is not None else PatchConfig()
 
-    raw_patch = lines_to_raw_changes( patch_io, parse_config_ready )
+    raw_patch = lines_to_raw_changes(patch_io, parse_config_ready)
     patch_conv = raw_patch_convert(raw_patch)
     masked_patch = prepare_masked_patch(patch_conv, patch_config_ready)
     file_cache = prepare_file_cache(

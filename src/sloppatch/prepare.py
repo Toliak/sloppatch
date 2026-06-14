@@ -1,16 +1,23 @@
-from bisect import bisect_left, bisect_right
+from bisect import bisect_left
 import dataclasses
-import enum
-from typing import Dict, Generator, Iterable, Iterator, List, Sequence, Tuple, Type
+from typing import Dict, List, Tuple
 
 from .error import SloppatchError
-from .whatthepatch_regexp import unified_hunk_start, unified_change
-from .data import Patch, RawAct, RawHunk, RawHunkData, RawHunkChanges, RawChange, RawPatch, Hunk, HunkData
+from .data import (
+    Patch,
+    RawHunk,
+    RawHunkChanges,
+    RawPatch,
+    Hunk,
+    HunkData,
+)
+
 
 @dataclasses.dataclass(frozen=True)
 class CountLinesResult:
     before: int
     after: int
+
 
 def _count_hunk_lines(changes: RawHunkChanges) -> CountLinesResult:
     r_before = 0
@@ -24,7 +31,9 @@ def _count_hunk_lines(changes: RawHunkChanges) -> CountLinesResult:
 
 class RawHunkValidationError(SloppatchError):
     def __init__(self, raw_hunk: RawHunk, message: str):
-        super().__init__(f"Raw Hunk validation error: '{message}'. Hunk: {raw_hunk.str_header()}")
+        super().__init__(
+            f"Raw Hunk validation error: '{message}'. Hunk: {raw_hunk.str_header()}"
+        )
         self.raw_hunk = raw_hunk
 
 
@@ -36,33 +45,28 @@ def raise_validate_raw_hunk(raw_hunk: RawHunk) -> None:
     after_line = raw_hunk.after.line
     if before_line < 1:
         raise RawHunkValidationError(
-            raw_hunk,
-            f"Line number (original) must start from 1. Got {before_line}"
+            raw_hunk, f"Line number (original) must start from 1. Got {before_line}"
         )
     if after_line < 1:
         raise RawHunkValidationError(
-            raw_hunk,
-            f"Line number (new) must start from 1. Got {after_line}"
+            raw_hunk, f"Line number (new) must start from 1. Got {after_line}"
         )
 
     lines = _count_hunk_lines(raw_hunk.changes)
     if expected_before_length != lines.before:
         raise RawHunkValidationError(
             raw_hunk,
-            f"Original line count in hunk ({lines.before}) does not match header ({expected_before_length})"
+            f"Original line count in hunk ({lines.before}) does not match header ({expected_before_length})",
         )
 
     if expected_after_length != lines.after:
         raise RawHunkValidationError(
             raw_hunk,
-            f"New line count in hunk ({lines.after}) does not match header ({expected_after_length})"
+            f"New line count in hunk ({lines.after}) does not match header ({expected_after_length})",
         )
-    
+
     if lines.after == 0 and lines.before == 0:
-        raise RawHunkValidationError(
-            raw_hunk,
-            f"Empty hunk (no lines inside)"
-        )
+        raise RawHunkValidationError(raw_hunk, "Empty hunk (no lines inside)")
 
 
 def validate_raw_hunk(raw_hunk: RawHunk) -> bool:
@@ -73,9 +77,12 @@ def validate_raw_hunk(raw_hunk: RawHunk) -> bool:
     else:
         return True
 
+
 class RawPatchValidationError(SloppatchError):
     def __init__(self, raw_patch: RawPatch, raw_hunk: RawHunk, message: str):
-        super().__init__(f"Raw Patch validation error: '{message}'. In hunk: {raw_hunk.str_header()}")
+        super().__init__(
+            f"Raw Patch validation error: '{message}'. In hunk: {raw_hunk.str_header()}"
+        )
         self.raw_patch = raw_patch
         self.raw_hunk = raw_hunk
 
@@ -100,8 +107,8 @@ def raise_validate_raw_patch(raw_patch: RawPatch) -> None:
                 raise RawPatchValidationError(
                     raw_patch,
                     hunk,
-                    "Hunk original lines overlap. " +
-                    f"Existing range: ({r[0]},{r[1]}). New range: ({lb_begin}{lb_end})"
+                    "Hunk original lines overlap. "
+                    + f"Existing range: ({r[0]},{r[1]}). New range: ({lb_begin}{lb_end})",
                 )
 
         for r in line_after_ranges:
@@ -109,8 +116,8 @@ def raise_validate_raw_patch(raw_patch: RawPatch) -> None:
                 raise RawPatchValidationError(
                     raw_patch,
                     hunk,
-                    "Hunk new lines overlap. " +
-                    f"Existing range: ({r[0]},{r[1]}). New range: ({la_begin}{la_end})"
+                    "Hunk new lines overlap. "
+                    + f"Existing range: ({r[0]},{r[1]}). New range: ({la_begin}{la_end})",
                 )
 
         line_before_ranges.append((lb_begin, lb_end))
@@ -140,9 +147,9 @@ def raise_validate_raw_patch(raw_patch: RawPatch) -> None:
             raise RawPatchValidationError(
                 raw_patch,
                 hunk,
-                "Original start line and new start line validation failed. " +
-                f"Hunk header: {hunk.str_header()}. "
-                f"Delta: ({delta})"
+                "Original start line and new start line validation failed. "
+                + f"Hunk header: {hunk.str_header()}. "
+                f"Delta: ({delta})",
             )
 
 
@@ -172,12 +179,10 @@ def raw_hunk_convert(raw_hunk: RawHunk) -> Hunk:
         changes=raw_hunk.changes,
     )
 
+
 def raw_patch_convert(raw: RawPatch) -> Patch:
     """
     Validates and converts the RawPatch into Patch
     """
     raise_validate_raw_patch(raw)
-    return [
-        raw_hunk_convert(hunk)
-        for hunk in raw
-    ]
+    return [raw_hunk_convert(hunk) for hunk in raw]
