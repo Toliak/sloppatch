@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sloppatch"
-version = "0.1.0"
+version = "0.1.1"
 description = "Patch tool with enhanced configuration (context line case ignore, whitespace ignore, skip wrong hunk lines, ...)"
 readme = {file = "README.md", content-type = "text/markdown"}
 license = {text = "MIT"}
@@ -27,6 +27,9 @@ sloppatch = "sloppatch_cli.cli:main"
 
 [project.urls] # Optional
 Repository = "https://github.com/Toliak/sloppatch"
+
+[tool.setuptools]
+include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"] # Look for packages inside the src directory
