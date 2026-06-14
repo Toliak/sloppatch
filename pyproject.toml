@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sloppatch"
+version = "0.1.0"
+description = "Patch tool with enhanced configuration (context line case ignore, whitespace ignore, skip wrong hunk lines, ...)"
+readme = {file = "README.md", content-type = "text/markdown"}
+license = {text = "MIT"}
+requires-python = ">=3.10"
+
+# dependencies = [
+#     "requests>=2.25.0",
+# ]
+
+[project.optional-dependencies]
+dev = [
+    "mypy==2.1.0",
+    "pytest==9.0.3",
+    "ruff==0.15.17"
+]
+
+# CLI
+[project.scripts]
+sloppatch = "sloppatch_cli.cli:main"
+
+[project.urls] # Optional
+Repository = "https://github.com/Toliak/sloppatch"
+
+[tool.setuptools.packages.find]
+where = ["src"] # Look for packages inside the src directory
+include = ["sloppatch*"] # Include the sloppatch package and its submodules

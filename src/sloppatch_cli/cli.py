@@ -119,7 +119,8 @@ def create_random_suffix(length: int = 6) -> str:
     return "".join(random.choices(characters, k=length))
 
 
-def main(argv: List[str]):
+def main():
+    argv = sys.argv[1:]
     args, patch_config = parse_arguments(argv)
 
     print(f"Input file: {args.input_file}", file=sys.stderr)
@@ -167,4 +168,4 @@ def main(argv: List[str]):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main()

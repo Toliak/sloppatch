@@ -1,7 +1,6 @@
 from typing import Callable, Iterator, Optional
 
-from sloppatch.prepare import raw_patch_convert
-
+from .prepare import raw_patch_convert
 from .apply import (
     PatchConfig,
     apply_patch,
