@@ -1,15 +1,17 @@
 from bisect import bisect_left
 import dataclasses
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 from .error import SloppatchError
 from .data import (
     Patch,
     RawHunk,
+    RawHunkData,
     RawHunkChanges,
     RawPatch,
     Hunk,
     HunkData,
+    ParseConfig,
 )
 
 
@@ -37,7 +39,7 @@ class RawHunkValidationError(SloppatchError):
         self.raw_hunk = raw_hunk
 
 
-def raise_validate_raw_hunk(raw_hunk: RawHunk) -> None:
+def raise_validate_raw_hunk(raw_hunk: RawHunk, cfg: ParseConfig) -> None:
     expected_after_length = raw_hunk.after.length
     expected_before_length = raw_hunk.before.length
 
@@ -54,24 +56,36 @@ def raise_validate_raw_hunk(raw_hunk: RawHunk) -> None:
 
     lines = _count_hunk_lines(raw_hunk.changes)
     if expected_before_length != lines.before:
-        raise RawHunkValidationError(
-            raw_hunk,
-            f"Original line count in hunk ({lines.before}) does not match header ({expected_before_length})",
+        if not cfg.skip_hunk_lengths:
+            raise RawHunkValidationError(
+                raw_hunk,
+                f"Original line count in hunk ({lines.before}) does not match header ({expected_before_length})",
+            )
+
+        raw_hunk.before = RawHunkData(
+            line=raw_hunk.before.line,
+            length=lines.before
         )
 
     if expected_after_length != lines.after:
-        raise RawHunkValidationError(
-            raw_hunk,
-            f"New line count in hunk ({lines.after}) does not match header ({expected_after_length})",
+        if not cfg.skip_hunk_lengths:
+            raise RawHunkValidationError(
+                raw_hunk,
+                f"New line count in hunk ({lines.after}) does not match header ({expected_after_length})",
+            )
+
+        raw_hunk.after = RawHunkData(
+            line=raw_hunk.after.line,
+            length=lines.after
         )
 
     if lines.after == 0 and lines.before == 0:
         raise RawHunkValidationError(raw_hunk, "Empty hunk (no lines inside)")
 
 
-def validate_raw_hunk(raw_hunk: RawHunk) -> bool:
+def validate_raw_hunk(raw_hunk: RawHunk, cfg: ParseConfig) -> bool:
     try:
-        raise_validate_raw_hunk(raw_hunk)
+        raise_validate_raw_hunk(raw_hunk, cfg)
     except RawHunkValidationError as _e:
         return False
     else:
@@ -87,13 +101,15 @@ class RawPatchValidationError(SloppatchError):
         self.raw_hunk = raw_hunk
 
 
-def raise_validate_raw_patch(raw_patch: RawPatch) -> None:
+def raise_validate_raw_patch(raw_patch: RawPatch, cfg: Optional[ParseConfig] = None) -> None:
+    cfg_ready = cfg if cfg is not None else ParseConfig()
+
     line_before_ranges: List[Tuple[int, int]] = []
     line_after_ranges: List[Tuple[int, int]] = []
 
     # Verify each hunk
     for hunk in raw_patch:
-        raise_validate_raw_hunk(hunk)
+        raise_validate_raw_hunk(hunk, cfg_ready)
 
     # Verify the absence of range overlaps
     for hunk in raw_patch:

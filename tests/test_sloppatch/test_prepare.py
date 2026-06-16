@@ -1,5 +1,6 @@
 from sloppatch.data import RawAct
 import pytest
+from sloppatch.data import ParseConfig
 from sloppatch.prepare import (
     RawHunkValidationError,
     RawPatchValidationError,
@@ -24,7 +25,7 @@ class TestRaiseValidateHunk:
                 make_change(RawAct.Context, "d"),
             ],
         )  # before: context+delete=2, after: context+add=3
-        raise_validate_raw_hunk(hunk)  # no exception
+        raise_validate_raw_hunk(hunk, ParseConfig())  # no exception
 
     def test_before_length_mismatch(self) -> None:
         hunk = make_raw_hunk(
@@ -39,7 +40,7 @@ class TestRaiseValidateHunk:
         with pytest.raises(
             RawHunkValidationError, match="Original line count.+does not match"
         ):
-            raise_validate_raw_hunk(hunk)
+            raise_validate_raw_hunk(hunk, ParseConfig())
 
     def test_after_length_mismatch(self) -> None:
         hunk = make_raw_hunk(
@@ -54,12 +55,12 @@ class TestRaiseValidateHunk:
         with pytest.raises(
             RawHunkValidationError, match="New line count.+does not match"
         ):
-            raise_validate_raw_hunk(hunk)
+            raise_validate_raw_hunk(hunk, ParseConfig())
 
     def test_empty_hunk_raises(self) -> None:
         hunk = make_raw_hunk(1, 0, 2, 0, changes=[])
         with pytest.raises(RawHunkValidationError, match="Empty hunk"):
-            raise_validate_raw_hunk(hunk)
+            raise_validate_raw_hunk(hunk, ParseConfig())
 
     def test_only_deletions_valid(self) -> None:
         # after count = 0 is allowed as long as before > 0.
@@ -73,7 +74,7 @@ class TestRaiseValidateHunk:
                 make_change(RawAct.Delete, "y"),
             ],
         )
-        raise_validate_raw_hunk(hunk)
+        raise_validate_raw_hunk(hunk, ParseConfig())
 
     def test_only_additions_valid(self) -> None:
         hunk = make_raw_hunk(
@@ -86,7 +87,7 @@ class TestRaiseValidateHunk:
                 make_change(RawAct.Add, "y"),
             ],
         )
-        raise_validate_raw_hunk(hunk)
+        raise_validate_raw_hunk(hunk, ParseConfig())
 
 
 class TestRaiseValidatePatch:

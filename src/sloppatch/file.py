@@ -8,17 +8,18 @@ from .apply import (
     prepare_file_cache,
     prepare_patch_final,
 )
-from .parse import LineParseConfig, lines_to_raw_changes
+from .parse import lines_to_raw_changes
+from .data import ParseConfig
 
 
 def full_pipeline(
     input_get_io: Callable[[], Iterator[str]],
     patch_io: Iterator[str],
-    parse_config: Optional[LineParseConfig] = None,
+    parse_config: Optional[ParseConfig] = None,
     patch_config: Optional[PatchConfig] = None,
 ) -> Iterator[str]:
     """Returns iterator of output lines (with endings)"""
-    parse_config_ready = parse_config if parse_config is not None else LineParseConfig()
+    parse_config_ready = parse_config if parse_config is not None else ParseConfig()
     patch_config_ready = patch_config if patch_config is not None else PatchConfig()
 
     raw_patch = lines_to_raw_changes(patch_io, parse_config_ready)

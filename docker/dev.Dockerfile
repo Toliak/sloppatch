@@ -20,7 +20,8 @@ RUN --mount=type=cache,target=/var/cache/apt \
     python3-venv \
     less \
     golang \
-    make
+    make \
+    locales-all
 
 ARG USERNAME=devuser
 ARG PASSWORD=123456

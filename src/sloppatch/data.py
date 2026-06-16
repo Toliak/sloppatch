@@ -75,3 +75,11 @@ class Hunk:
 
 
 Patch = List[Hunk]
+
+@dataclasses.dataclass
+class ParseConfig:
+    skip_raw_empty_lines: bool = False
+    skip_raw_wrong_format_lines: bool = False
+    skip_raw_orphaned_changes: bool = False
+
+    skip_hunk_lengths: bool = False
