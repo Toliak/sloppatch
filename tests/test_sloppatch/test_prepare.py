@@ -96,7 +96,7 @@ class TestRaiseValidatePatch:
             make_raw_hunk(1, 2, 1, 2),  # before [1,3), after [10,12)
             make_raw_hunk(5, 1, 5, 1),  # before [5,6), after [15,16)
         ]
-        raise_validate_raw_patch(patch)  # no error
+        raise_validate_raw_patch(patch, ParseConfig())  # no error
 
     def test_overlapping_before_begin(self) -> None:
         patch = [
@@ -104,7 +104,7 @@ class TestRaiseValidatePatch:
             make_raw_hunk(3, 2, 20, 1),  # before [3,5)  -> 3 is inside [1,6)
         ]
         with pytest.raises(RawPatchValidationError, match="overlap"):
-            raise_validate_raw_patch(patch)
+            raise_validate_raw_patch(patch, ParseConfig())
 
     def test_overlapping_before_end(self) -> None:
         patch = [
@@ -112,7 +112,7 @@ class TestRaiseValidatePatch:
             make_raw_hunk(1, 6, 20, 1),  # before [1,7) end=7, 5<=7<10 => overlap end
         ]
         with pytest.raises(RawPatchValidationError, match="overlap"):
-            raise_validate_raw_patch(patch)
+            raise_validate_raw_patch(patch, ParseConfig())
 
     def test_overlapping_engulfing(self) -> None:
         patch = [
@@ -120,7 +120,7 @@ class TestRaiseValidatePatch:
             make_raw_hunk(2, 10, 2, 10),
         ]
         with pytest.raises(RawPatchValidationError, match="overlap"):
-            raise_validate_raw_patch(patch)
+            raise_validate_raw_patch(patch, ParseConfig())
 
     def test_overlapping_after_begin(self) -> None:
         patch = [
@@ -128,7 +128,7 @@ class TestRaiseValidatePatch:
             make_raw_hunk(3, 1, 12, 2),  # after [12,14) -> 12 inside [10,15)
         ]
         with pytest.raises(RawPatchValidationError, match="overlap"):
-            raise_validate_raw_patch(patch)
+            raise_validate_raw_patch(patch, ParseConfig())
 
     def test_overlapping_after_end(self) -> None:
         patch = [
@@ -136,31 +136,31 @@ class TestRaiseValidatePatch:
             make_raw_hunk(3, 1, 6, 6),  # after [6,12) end=12, 10<=12<15 => overlap end
         ]
         with pytest.raises(RawPatchValidationError, match="overlap"):
-            raise_validate_raw_patch(patch)
+            raise_validate_raw_patch(patch, ParseConfig())
 
     def test_empty_patch(self) -> None:
-        raise_validate_raw_patch([])  # no error
+        raise_validate_raw_patch([], ParseConfig())  # no error
 
     def test_valid_additions(self) -> None:
         # Hunk 1: orig 1..3 -> new 1..5 (delta +2)
         # Hunk 2: orig 5..5 -> new 7..9 (delta +2). Expected after.line: 5 + 2 = 7.
         h1 = make_raw_hunk(1, 3, 1, 5)
         h2 = make_raw_hunk(5, 1, 7, 3)
-        raise_validate_raw_patch([h1, h2])
+        raise_validate_raw_patch([h1, h2], ParseConfig())
 
     def test_valid_deletions(self) -> None:
         # Hunk 1: orig 1..5 -> new 1..3 (delta -2)
         # Hunk 2: orig 7..7 -> new 5..6 (delta +1). Expected after.line: 7 - 2 = 5.
         h1 = make_raw_hunk(1, 5, 1, 3)
         h2 = make_raw_hunk(7, 1, 5, 2)
-        raise_validate_raw_patch([h1, h2])
+        raise_validate_raw_patch([h1, h2], ParseConfig())
 
     def test_valid_zero_delta(self) -> None:
         # Hunk 1: orig 1..3 -> new 1..3 (delta 0, ignored in keys)
         # Hunk 2: orig 5..5 -> new 5..7 (delta +2). Expected after.line: 5 + 0 = 5.
         h1 = make_raw_hunk(1, 3, 1, 3)
         h2 = make_raw_hunk(5, 1, 5, 3)
-        raise_validate_raw_patch([h1, h2])
+        raise_validate_raw_patch([h1, h2], ParseConfig())
 
     def test_invalid_after_line_too_small(self) -> None:
         # Hunk 1: orig 1..3 -> new 1..5 (delta +2)
@@ -171,7 +171,7 @@ class TestRaiseValidatePatch:
             RawPatchValidationError,
             match="Original start line and new start line validation failed",
         ):
-            raise_validate_raw_patch([h1, h2])
+            raise_validate_raw_patch([h1, h2], ParseConfig())
 
     def test_invalid_after_line_too_large(self) -> None:
         # Hunk 1: orig 1..3 -> new 1..5 (delta +2)
@@ -182,4 +182,4 @@ class TestRaiseValidatePatch:
             RawPatchValidationError,
             match="Original start line and new start line validation failed",
         ):
-            raise_validate_raw_patch([h1, h2])
+            raise_validate_raw_patch([h1, h2], ParseConfig())

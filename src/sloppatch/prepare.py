@@ -1,6 +1,6 @@
 from bisect import bisect_left
 import dataclasses
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple
 
 from .error import SloppatchError
 from .data import (
@@ -101,15 +101,13 @@ class RawPatchValidationError(SloppatchError):
         self.raw_hunk = raw_hunk
 
 
-def raise_validate_raw_patch(raw_patch: RawPatch, cfg: Optional[ParseConfig] = None) -> None:
-    cfg_ready = cfg if cfg is not None else ParseConfig()
-
+def raise_validate_raw_patch(raw_patch: RawPatch, cfg: ParseConfig) -> None:
     line_before_ranges: List[Tuple[int, int]] = []
     line_after_ranges: List[Tuple[int, int]] = []
 
     # Verify each hunk
     for hunk in raw_patch:
-        raise_validate_raw_hunk(hunk, cfg_ready)
+        raise_validate_raw_hunk(hunk, cfg)
 
     # Verify the absence of range overlaps
     for hunk in raw_patch:
@@ -196,9 +194,9 @@ def raw_hunk_convert(raw_hunk: RawHunk) -> Hunk:
     )
 
 
-def raw_patch_convert(raw: RawPatch) -> Patch:
+def raw_patch_convert(raw: RawPatch, cfg: ParseConfig) -> Patch:
     """
     Validates and converts the RawPatch into Patch
     """
-    raise_validate_raw_patch(raw)
+    raise_validate_raw_patch(raw, cfg)
     return [raw_hunk_convert(hunk) for hunk in raw]
