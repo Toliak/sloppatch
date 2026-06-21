@@ -1,13 +1,17 @@
 from typing import List
 from sloppatch.apply import (
     PatchConfig,
-    hunk_line_index,
-    prepare_masked_hunk,
-    prepare_masked_patch,
+    ValidatePatchLinesError,
+    hunk_place_line_nmb,
     prepare_file_cache,
+    spiral_range,
 )
-from sloppatch.data import Hunk, HunkData, Patch, RawAct, RawChange
+from sloppatch.data import AfterLine, Hunk, ParseConfig, Patch, RawAct, RawChange, RawHunk
 import pytest
+
+from sloppatch.prepare import raw_patch_convert
+
+from .helpers import raw_to_patch_convert_nocfg
 
 
 
@@ -15,33 +19,14 @@ class TestPreparePatch:
     @pytest.fixture
     def simple_patch(self) -> Patch:
         """A patch that changes line 3 from 'old' to 'new'."""
-        return [
-            Hunk(
-                before=HunkData(line=3, lines=["old"]),
-                after=HunkData(line=3, lines=["new"]),
-                comment="",
-                changes=[
-                    RawChange(RawAct.Delete, "old\n"),
-                    RawChange(RawAct.Add, "new\n"),
-                ],
-            )
-        ]
+        raw = "# 3 #\n-old\n+new"
+        return raw_to_patch_convert_nocfg(raw.splitlines(True))
 
     @pytest.fixture
     def first_line_patch(self) -> Patch:
         """A patch that changes line 3 from 'old' to 'new'."""
-        return [
-            Hunk(
-                before=HunkData(line=1, lines=["old\n"]),
-                after=HunkData(line=1, lines=["new1\n", "new2\n"]),
-                comment="Testing",
-                changes=[
-                    RawChange(RawAct.Delete, "old\n"),
-                    RawChange(RawAct.Add, "new1\n"),
-                    RawChange(RawAct.Add, "new2\n"),
-                ],
-            )
-        ]
+        raw = "# 1 # Testing\n-old\n+new1\n+new2\n/"
+        return raw_to_patch_convert_nocfg(raw.splitlines(True))
 
     def test_empty_patch(self) -> None:
         cfg = PatchConfig(fuzz_context_lines=0)
@@ -51,17 +36,7 @@ class TestPreparePatch:
     def test_patch_with_empty_hunk(self) -> None:
         cfg = PatchConfig(fuzz_context_lines=1)
         lines = ["line1\n", "line2\n", "line3\n", "line4\n", "line5\n"]
-        patch = prepare_masked_patch(
-            [
-                Hunk(
-                    before=HunkData(line=3, lines=[]),
-                    after=HunkData(line=3, lines=[]),
-                    comment="",
-                    changes=[],
-                )
-            ],
-            cfg,
-        )
+        patch = raw_to_patch_convert_nocfg("")
         file = prepare_file_cache(patch, cfg, lines)
 
         assert file._ranges == []
@@ -85,7 +60,7 @@ class TestPreparePatch:
         assert file.get_line_mask(999) is None
 
     def test_masks_respect_config(self, simple_patch) -> None:
-        cfg = PatchConfig(fuzz_context_lines=2, trim_string=True, ignore_case_all=True)
+        cfg = PatchConfig(fuzz_context_lines=2, trim_string=True, ignore_case_rule='ignore-all')
         lines = [
             "  A  \n",  # 1
             "  b  \n",  # 2
@@ -109,35 +84,14 @@ class TestPreparePatch:
 
     def test_prepared_hunk_has_masks(self, simple_patch: Patch) -> None:
         cfg = PatchConfig(trim_string=True)
-        patch = prepare_masked_patch(simple_patch, cfg)
-        hunk = patch[0]
-        assert hunk.before_masks == ["old"]
+        hunk = simple_patch[0]
+        assert hunk.before_lines[0].mask == "old"
 
     def test_multiple_hunks(self) -> None:
         cfg = PatchConfig(fuzz_context_lines=0)
-        patch = prepare_masked_patch(
-            [
-                Hunk(
-                    before=HunkData(line=2, lines=["x\n"]),
-                    after=HunkData(line=2, lines=["y\n"]),
-                    comment="",
-                    changes=[
-                        RawChange(RawAct.Delete, "x\n"),
-                        RawChange(RawAct.Add, "y\n"),
-                    ],
-                ),
-                Hunk(
-                    before=HunkData(line=5, lines=["z\n"]),
-                    after=HunkData(line=5, lines=["w\n"]),
-                    comment="",
-                    changes=[
-                        RawChange(RawAct.Delete, "z\n"),
-                        RawChange(RawAct.Add, "w\n"),
-                    ],
-                ),
-            ],
-            cfg,
-        )
+        raw1 = "# 2 #\n-x\n+y"
+        raw2 = "# 5 #\n-z\n+x\n"
+        patch = raw_to_patch_convert_nocfg((raw1 + "\n" + raw2).splitlines(True))
         lines = [
             "1\n",
             "x\n",
@@ -167,77 +121,118 @@ class TestHunkLineIndex:
         return PatchConfig(fuzz_context_lines=4)
 
     def test_correct_line(self, lines, cfg) -> None:
-        hunk = prepare_masked_hunk(
-            Hunk(
-                before=HunkData(line=3, lines=["3\n"]),
-                after=HunkData(line=3, lines=["3_1\n", "3_2\n"]),
+        patch = raw_patch_convert(
+            [RawHunk(
+                start_line=3,
                 comment="",
                 changes=[
                     RawChange(RawAct.Delete, "3\n"),
                     RawChange(RawAct.Add, "3_1\n"),
                     RawChange(RawAct.Add, "3_2\n"),
                 ],
-            ),
+            )],
+            ParseConfig(),
             cfg,
         )
-        file_cache = prepare_file_cache([hunk], cfg, lines)
-        idx = hunk_line_index(hunk=hunk, file=file_cache, cfg=cfg)
+        file_cache = prepare_file_cache(patch, cfg, lines)
+        idx = hunk_place_line_nmb(hunk=patch[0], file=file_cache, cfg=cfg)
 
         assert idx == 3
 
     def test_line_before(self, lines, cfg) -> None:
-        hunk = prepare_masked_hunk(
-            Hunk(
-                before=HunkData(line=3, lines=["1"]),
-                after=HunkData(line=3, lines=["1_1", "1_2"]),
+        patch = raw_patch_convert(
+            [RawHunk(
+                start_line=3,
                 comment="",
                 changes=[
                     RawChange(RawAct.Delete, "1\n"),
                     RawChange(RawAct.Add, "1_1\n"),
                     RawChange(RawAct.Add, "1_2\n"),
                 ],
-            ),
+            )],
+            ParseConfig(),
             cfg,
         )
-        file_cache = prepare_file_cache([hunk], cfg, lines)
-        idx = hunk_line_index(hunk=hunk, file=file_cache, cfg=cfg)
+        file_cache = prepare_file_cache(patch, cfg, lines)
+        idx = hunk_place_line_nmb(hunk=patch[0], file=file_cache, cfg=cfg)
 
         assert idx == 1
 
     def test_line_after(self, lines, cfg) -> None:
-        hunk = prepare_masked_hunk(
-            Hunk(
-                before=HunkData(line=3, lines=["6"]),
-                after=HunkData(line=3, lines=["6_1", "6_2"]),
+        patch = raw_patch_convert(
+            [RawHunk(
+                start_line=3,
                 comment="",
                 changes=[
                     RawChange(RawAct.Delete, "6\n"),
                     RawChange(RawAct.Add, "6_1\n"),
                     RawChange(RawAct.Add, "6_2\n"),
                 ],
-            ),
+            )],
+            ParseConfig(),
             cfg,
         )
-        file_cache = prepare_file_cache([hunk], cfg, lines)
-        idx = hunk_line_index(hunk=hunk, file=file_cache, cfg=cfg)
+        file_cache = prepare_file_cache(patch, cfg, lines)
+        idx = hunk_place_line_nmb(hunk=patch[0], file=file_cache, cfg=cfg)
 
         assert idx == 6
 
     def test_not_found(self, lines, cfg) -> None:
-        hunk = prepare_masked_hunk(
-            Hunk(
-                before=HunkData(line=3, lines=["6", "000"]),
-                after=HunkData(line=3, lines=["000", "000"]),
+        patch = raw_patch_convert(
+            [RawHunk(
+                start_line=3,
                 comment="",
                 changes=[
                     RawChange(RawAct.Delete, "6\n"),
                     RawChange(RawAct.Add, "000\n"),
                     RawChange(RawAct.Context, "000\n"),
                 ],
-            ),
+            )],
+            ParseConfig(),
             cfg,
         )
-        file_cache = prepare_file_cache([hunk], cfg, lines)
-        idx = hunk_line_index(hunk=hunk, file=file_cache, cfg=cfg)
+        file_cache = prepare_file_cache(patch, cfg, lines)
+        with pytest.raises(ValidatePatchLinesError, match="Unable to find"):
+            idx = hunk_place_line_nmb(hunk=patch[0], file=file_cache, cfg=cfg)
 
-        assert idx == -1
+
+class TestSpiralRange:
+    def test_spiral_range_basic(self):
+        result = list(spiral_range(5, 0, 10))
+        expected: List[int] = [5, 4, 6, 3, 7, 2, 8, 1, 9, 0]
+        assert result == expected
+
+    def test_spiral_range_edge_case_start_at_beginning(self):
+        result = list(spiral_range(0, 0, 5))
+        expected: List[int] = [0, 1, 2, 3, 4]
+        assert result == expected
+
+    def test_spiral_range_edge_case_start_at_end(self):
+        result = list(spiral_range(4, 0, 5))
+        expected: List[int] = [4, 3, 2, 1, 0]
+        assert result == expected
+
+    def test_spiral_range_single_element(self):
+        result = list(spiral_range(5, 5, 6))
+        expected: List[int] = [5]
+        assert result == expected
+
+    def test_spiral_range_invalid_start(self):
+        result: List[int] = list(spiral_range(10, 0, 5))  # start outside range
+        expected: List[int] = []
+        assert result == expected
+
+    def test_spiral_range_negative_numbers(self):
+        result = list(spiral_range(-1, -3, 3))
+        expected: List[int] = [-1, -2, 0, -3, 1, 2]
+        assert result == expected
+
+    def test_spiral_range_large_range(self):
+        result = list(spiral_range(2, 0, 6))
+        expected: List[int] = [2, 1, 3, 0, 4, 5]
+        assert result == expected
+
+    def test_spiral_range_empty_range(self):
+        result = list(spiral_range(0, 0, 0))
+        expected: List[int] = []
+        assert result == expected

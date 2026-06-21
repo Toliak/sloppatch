@@ -1,16 +1,23 @@
+"""
+RawHunks text into the Patch (ready to apply over a file).
+Without knowledge of the target file.
+"""
+
 from bisect import bisect_left
 import dataclasses
-from typing import Dict, List, Tuple
+import re
+from typing import Dict, List, Optional, Tuple, assert_never
 
 from .error import SloppatchError
 from .data import (
+    BeforeLine,
+    HunkLine,
     Patch,
+    PatchConfig,
+    RawAct,
     RawHunk,
-    RawHunkData,
-    RawHunkChanges,
     RawPatch,
     Hunk,
-    HunkData,
     ParseConfig,
 )
 
@@ -21,182 +28,131 @@ class CountLinesResult:
     after: int
 
 
-def _count_hunk_lines(changes: RawHunkChanges) -> CountLinesResult:
-    r_before = 0
-    r_after = 0
-    for c in changes:
-        r_before += int(c.act.is_before())
-        r_after += int(c.act.is_after())
-
-    return CountLinesResult(r_before, r_after)
-
-
 class RawHunkValidationError(SloppatchError):
-    def __init__(self, raw_hunk: RawHunk, message: str):
-        super().__init__(
-            f"Raw Hunk validation error: '{message}'. Hunk: {raw_hunk.str_header()}"
-        )
-        self.raw_hunk = raw_hunk
+    pass
 
 
-def raise_validate_raw_hunk(raw_hunk: RawHunk, cfg: ParseConfig) -> None:
-    expected_after_length = raw_hunk.after.length
-    expected_before_length = raw_hunk.before.length
+def raise_validate_raw_hunk(raw_hunk: RawHunk, cfg: ParseConfig) -> Optional[RawHunk]:
+    """
+    RawHunk -- ok
+    None -- skip the hunk
 
-    before_line = raw_hunk.before.line
-    after_line = raw_hunk.after.line
+    Raised exception -- error
+    """
+
+    before_line = raw_hunk.start_line
     if before_line < 1:
-        raise RawHunkValidationError(
-            raw_hunk, f"Line number (original) must start from 1. Got {before_line}"
-        )
-    if after_line < 1:
-        raise RawHunkValidationError(
-            raw_hunk, f"Line number (new) must start from 1. Got {after_line}"
-        )
+        raise RawHunkValidationError(f"Line number (start) must start from 1. Got {before_line}")
 
-    lines = _count_hunk_lines(raw_hunk.changes)
-    if expected_before_length != lines.before:
-        if not cfg.skip_hunk_lengths:
-            raise RawHunkValidationError(
-                raw_hunk,
-                f"Original line count in hunk ({lines.before}) does not match header ({expected_before_length})",
-            )
-
-        raw_hunk.before = RawHunkData(
-            line=raw_hunk.before.line,
-            length=lines.before
-        )
-
-    if expected_after_length != lines.after:
-        if not cfg.skip_hunk_lengths:
-            raise RawHunkValidationError(
-                raw_hunk,
-                f"New line count in hunk ({lines.after}) does not match header ({expected_after_length})",
-            )
-
-        raw_hunk.after = RawHunkData(
-            line=raw_hunk.after.line,
-            length=lines.after
-        )
-
-    if lines.after == 0 and lines.before == 0:
-        raise RawHunkValidationError(raw_hunk, "Empty hunk (no lines inside)")
+    if not raw_hunk.changes:
+        match cfg.raw_empty_hunk_rule:
+            case "skip":
+                return None
+            case "strict":
+                raise RawHunkValidationError("Empty hunk (no lines inside)")
+            
+    return raw_hunk
 
 
-def validate_raw_hunk(raw_hunk: RawHunk, cfg: ParseConfig) -> bool:
-    try:
-        raise_validate_raw_hunk(raw_hunk, cfg)
-    except RawHunkValidationError as _e:
-        return False
-    else:
-        return True
+class PatchValidationError(SloppatchError):
+    pass
 
 
-class RawPatchValidationError(SloppatchError):
-    def __init__(self, raw_patch: RawPatch, raw_hunk: RawHunk, message: str):
-        super().__init__(
-            f"Raw Patch validation error: '{message}'. In hunk: {raw_hunk.str_header()}"
-        )
-        self.raw_patch = raw_patch
-        self.raw_hunk = raw_hunk
-
-
-def raise_validate_raw_patch(raw_patch: RawPatch, cfg: ParseConfig) -> None:
-    line_before_ranges: List[Tuple[int, int]] = []
-    line_after_ranges: List[Tuple[int, int]] = []
-
-    # Verify each hunk
-    for hunk in raw_patch:
-        raise_validate_raw_hunk(hunk, cfg)
+def raise_validate_patch(patch: Patch) -> None:
+    line_before_ranges: List[Tuple[int, int, Hunk]] = []
 
     # Verify the absence of range overlaps
-    for hunk in raw_patch:
-        lb_begin = hunk.before.line
-        lb_end = hunk.before.line + hunk.before.length
-        la_begin = hunk.after.line
-        la_end = hunk.after.line + hunk.after.length
+    for hunk in patch:
+        lb_begin = hunk.start_line
+        lb_end = lb_begin + len(hunk.before_lines)
 
         for r in line_before_ranges:
-            if r[0] < lb_end and r[1] > lb_begin:
-                raise RawPatchValidationError(
-                    raw_patch,
-                    hunk,
-                    "Hunk original lines overlap. "
-                    + f"Existing range: ({r[0]},{r[1]}). New range: ({lb_begin}{lb_end})",
+            in_begin, in_end, in_hunk = r
+            if in_begin < lb_end and in_end > lb_begin:
+                raise PatchValidationError(
+                    "Hunks overlap. "
+                    + f"Range 1: ({in_begin},{in_end}) from hunk '{in_hunk.str_header}'. " + 
+                    f"Range 2: ({lb_begin}{lb_end}) from hunk '{hunk.str_header}'. " + 
+                    "Consider to join two hunks into a single one.",
                 )
 
-        for r in line_after_ranges:
-            if r[0] < la_end and r[1] > la_begin:
-                raise RawPatchValidationError(
-                    raw_patch,
-                    hunk,
-                    "Hunk new lines overlap. "
-                    + f"Existing range: ({r[0]},{r[1]}). New range: ({la_begin}{la_end})",
-                )
-
-        line_before_ranges.append((lb_begin, lb_end))
-        line_after_ranges.append((la_begin, la_end))
-
-    # Verify "after" start line math
-    deltas: Dict[int, int] = dict()
-    for hunk in raw_patch:
-        key = hunk.before.line
-        delta = hunk.after.length - hunk.before.length
-        if delta == 0:
-            continue
-
-        deltas[key] = delta
-
-    keys: List[int] = list(sorted(deltas.keys()))
-
-    for hunk in raw_patch:
-        # Finds the index in range `[0, len(keys)]`
-        # Bisect left, because we must not include the current line's key
-        keys_to_check_idx = bisect_left(keys, hunk.before.line)
-        keys_to_check = keys[:keys_to_check_idx]
-        delta = sum(deltas[v] for v in keys_to_check)
-
-        # TODO: use cfg to force recalculate
-        if hunk.before.line + delta != hunk.after.line:
-            raise RawPatchValidationError(
-                raw_patch,
-                hunk,
-                "Original start line and new start line validation failed. "
-                + f"Hunk header: {hunk.str_header()}. "
-                f"Delta: ({delta})",
-            )
+        line_before_ranges.append((lb_begin, lb_end, hunk))
 
 
-def raw_hunk_convert(raw_hunk: RawHunk) -> Hunk:
+ANY_WHITESPACE_RE = re.compile(r"\s+")
+
+def line_to_mask(line: str, cfg: PatchConfig) -> str:
+    if not line:
+        return line
+
+    new_line = line
+    if new_line[-1] == "\n":
+        new_line = new_line[:-1]
+
+    if cfg.ignore_whitespaces:
+        new_line = re.sub(ANY_WHITESPACE_RE, "", new_line)
+
+    if cfg.trim_string and not cfg.ignore_whitespaces:
+        new_line = new_line.strip()
+
+    match cfg.ignore_case_rule:
+        case 'strict':
+            pass    # do noting
+        case 'ignore-all':
+            new_line = new_line.lower()
+        # case 'ignore-context':
+        #     if act == RawAct.Context:
+        #         new_line = new_line.lower()
+        case _:
+            assert_never(cfg.ignore_case_rule)
+
+    return new_line
+
+def raw_hunk_convert(raw_hunk: RawHunk, cfg: PatchConfig) -> Hunk:
     """
     Converts hunk (without validation)
     """
 
-    lines_before: List[str] = []
-    lines_after: List[str] = []
+    before_lines: List[BeforeLine] = []
+    after_lines: List[HunkLine] = []
     for c in raw_hunk.changes:
         if c.act.is_before():
-            lines_before.append(c.line)
+            before_lines.append(BeforeLine(
+                line=c.line,
+                act=c.act,
+                mask=line_to_mask(c.line, cfg)
+            ))
         if c.act.is_after():
-            lines_after.append(c.line)
+            after_lines.append(HunkLine(
+                line=c.line,
+                act=c.act,
+            ))
 
     return Hunk(
-        before=HunkData(
-            line=raw_hunk.before.line,
-            lines=lines_before,
-        ),
-        after=HunkData(
-            line=raw_hunk.after.line,
-            lines=lines_after,
-        ),
-        comment=raw_hunk.comment,
-        changes=raw_hunk.changes,
+        **raw_hunk.__dict__,
+        before_lines=before_lines,
+        after_lines=after_lines,
     )
 
 
-def raw_patch_convert(raw: RawPatch, cfg: ParseConfig) -> Patch:
+def raw_patch_convert(raw: RawPatch, parse_config: ParseConfig, patch_config: PatchConfig) -> Patch:
     """
     Validates and converts the RawPatch into Patch
     """
-    raise_validate_raw_patch(raw, cfg)
-    return [raw_hunk_convert(hunk) for hunk in raw]
+
+    raw_filtered: RawPatch = []
+    for i, hunk in enumerate(raw):
+        try:
+            v = raise_validate_raw_hunk(hunk, parse_config)
+        except SloppatchError as e:
+            raise RawHunkValidationError(f"Hunk number {i+1}, header '{hunk.str_header()}'. " + str(e)) from e
+        
+        if v is not None:
+            raw_filtered.append(hunk)
+
+    patch: Patch = [
+        raw_hunk_convert(hunk, patch_config) 
+        for hunk in raw_filtered
+    ]
+    raise_validate_patch(patch)
+    return patch

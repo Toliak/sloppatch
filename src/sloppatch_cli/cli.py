@@ -6,7 +6,7 @@ from pathlib import Path
 import random
 import string
 import sys
-from typing import Iterator, List, Optional, Tuple
+from typing import Iterator, List, Optional, Tuple, get_args, get_type_hints
 
 from sloppatch.apply import (
     PatchConfig,
@@ -84,7 +84,8 @@ def parse_arguments(argv: List[str]) -> Tuple[Arguments, PatchConfig]:
 
     parser.add_argument(
         "--cfg-ignore-case",
-        action="store_true",
+        type=str,
+        choices=get_args(get_type_hints(PatchConfig)['ignore_case_rule']),
         help="Ignore case while matching any line (auto-enables --trim-string)",
         required=False,
     )
@@ -100,7 +101,7 @@ def parse_arguments(argv: List[str]) -> Tuple[Arguments, PatchConfig]:
         fuzz_context_lines=args.cfg_fuzz_context_lines,
         trim_string=args.cfg_trim_string,
         ignore_whitespaces=args.cfg_ignore_whitespaces,
-        ignore_case_all=args.cfg_ignore_case,
+        ignore_case_rule=args.ignore_case_rule,
     )
     args_data = Arguments(
         input_file=args.input,

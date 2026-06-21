@@ -1,5 +1,7 @@
 from typing import List, Optional
-from sloppatch.data import RawChange, RawAct, RawHunk, RawHunkData
+from sloppatch.data import ParseConfig, Patch, PatchConfig, RawChange, RawAct, RawHunk, RawPatch
+from sloppatch.parse import lines_to_raw_changes
+from sloppatch.prepare import raw_patch_convert
 
 
 def make_raw_hunk(
@@ -22,8 +24,7 @@ def make_raw_hunk(
             changes_list.append(RawChange(RawAct.Add, f"line new {i}"))
 
     return RawHunk(
-        before=RawHunkData(line=before_line, length=before_len),
-        after=RawHunkData(line=after_line, length=after_len),
+        start_line=before_line,
         comment=comment,
         changes=changes_list,
     )
@@ -31,3 +32,7 @@ def make_raw_hunk(
 
 def make_change(act: RawAct, line: str) -> RawChange:
     return RawChange(act=act, line=line)
+
+def raw_to_patch_convert_nocfg(raw: str) -> Patch:
+    raw_patch = lines_to_raw_changes(raw)
+    return raw_patch_convert(raw_patch, ParseConfig(), PatchConfig())
