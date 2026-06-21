@@ -1,14 +1,15 @@
 services:
   dev:
     build:
-      context: ..
-      dockerfile: ./docker/dev.Dockerfile
+      context: .
+      dockerfile: ./dev.Dockerfile
       args:
         PASSWORD: ${PASSWORD:-123456}
         USER_UID: ${USER_UID:-1000}
         USER_GID: ${USER_GID:-1000}
+        VSCODE_VERSION: ${VSCODE_VERSION:-2ccd690cbff1569e4a83d7c43d45101f817401dc}
     ports:
-      - ${SSH_HOST:-127.0.0.1}:${SSH_PORT:-22222}:22
+      - ${SSH_ADDR:-127.0.0.1:22222}:22
     environment:
       "TERM": "xterm-256color"
     volumes:

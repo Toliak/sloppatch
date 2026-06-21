@@ -10,18 +10,20 @@ RUN --mount=type=cache,target=/var/cache/apt \
 \
     apt-get update -y --allow-releaseinfo-change && \
     apt-get install -y \
-    openssh-server \
-    sudo \
-    curl \
-    vim \
-    git \
-    golang \
-    python3 \
-    python3-venv \
-    less \
-    golang \
-    make \
-    locales-all
+        openssh-server \
+        sudo \
+        curl \
+        vim \
+        git \
+        golang \
+        python3 \
+        python3-venv \
+        less \
+        golang \
+        make \
+        locales-all \
+        curl \
+        jq
 
 ARG USERNAME=devuser
 ARG PASSWORD=123456
@@ -37,19 +39,26 @@ RUN mkdir -p /run/sshd && \
     ssh-keygen -A
 
 # zsh, git, tmux, vim, ...
-RUN git clone https://github.com/Toliak/MCE2 /tmp/mce2 && \
-    cd /tmp/mce2/configapp && \
-    make build && \
-    mkdir -p "/usr/local/bin" && \
-    mv /tmp/mce2/configapp/bin/mce "/usr/local/bin/mce" && \
-    rm -rf /tmp/mce2
+RUN mkdir -p /usr/local/bin && \
+    curl -L https://github.com/Toliak/MCE2/releases/download/v1.0.1/mce-linux-amd64 --output /usr/local/bin/mce && \
+    chmod +x /usr/local/bin/mce
 
 RUN /usr/local/bin/mce -y -ALL -no-ui && \
     rm -rf /tmp/mce2-*
-    # su devuser -c '/usr/local/bin/mce -y -ALL -repo-update-enable=0 -repo-packages-enable=0 -no-ui' && \
-    # rm -rf /tmp/mce2-*
+
+RUN su devuser -c '/usr/local/bin/mce -y -ALL -repo-update-enable=0 -repo-packages-enable=0 -no-ui' && \
+    rm -rf /tmp/mce2-*
+
+ARG VSCODE_VERSION=2ccd690cbff1569e4a83d7c43d45101f817401dc
+
+COPY overlay/extensions.list "/home/$USERNAME/"
+COPY overlay/install-vscode-server-with-extensions.sh "/home/$USERNAME/"
+
+USER "$USERNAME"
+RUN bash "/home/$USERNAME/install-vscode-server-with-extensions.sh" "$VSCODE_VERSION" "/home/$USERNAME/extensions.list"
 
 # Expose SSH port
 EXPOSE 22
 
+USER root
 CMD ["/usr/sbin/sshd", "-De", "-o", "LogLevel=VERBOSE"]
