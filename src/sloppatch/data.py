@@ -5,6 +5,7 @@ from typing import List, Literal, Optional
 LineIdx = int
 LineNmb = int
 
+
 class RawAct(enum.Enum):
     Context = "Context"
     Add = "Add"
@@ -22,6 +23,7 @@ class RawChange:
     act: RawAct
     line: str
     no_newline: bool = False
+
 
 RawHunkChanges = List[RawChange]
 
@@ -41,6 +43,7 @@ class RawHunk:
 
 RawPatch = List[RawHunk]
 
+
 @dataclasses.dataclass(frozen=True, slots=True)
 class HunkLine:
     line: str
@@ -50,6 +53,7 @@ class HunkLine:
 
     act: RawAct
 
+
 @dataclasses.dataclass(frozen=True, slots=True)
 class BeforeLine(HunkLine):
     mask: str
@@ -57,12 +61,15 @@ class BeforeLine(HunkLine):
     Line masked
     """
 
+
 @dataclasses.dataclass
 class Hunk(RawHunk):
     before_lines: List[BeforeLine]
     after_lines: List[HunkLine]
 
+
 Patch = List[Hunk]
+
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class AfterLine(HunkLine):
@@ -72,10 +79,12 @@ class AfterLine(HunkLine):
     """
     no_newline: bool
 
+
 @dataclasses.dataclass
 class PreparedHunk(Hunk):
     begin_source_line: LineNmb
     synced_after_lines: List[AfterLine]
+
 
 PreparedPatch = List[PreparedHunk]
 """
@@ -85,35 +94,36 @@ The Patch final stage.
 
 @dataclasses.dataclass
 class ParseConfig:
-    raw_empty_lines_rule: Literal['strict', 'skip', 'as-empty-context-line'] = 'strict'
+    raw_empty_lines_rule: Literal["strict", "skip", "as-empty-context-line"] = "strict"
     """
     How to consider raw empty line in a hunk
     """
 
-    raw_wrong_format_lines_rule: Literal['strict', 'skip'] = 'strict'
+    raw_wrong_format_lines_rule: Literal["strict", "skip"] = "strict"
     """
     How to consider a line that starts with unknown character. Or has unknown format
     """
 
-    raw_line_ltrim_rule: Literal['no', 'yes'] = 'no'
+    raw_line_ltrim_rule: Literal["no", "yes"] = "no"
     """
     Trims the left side of the raw line.
     """
 
-    raw_orphan_line_rule: Literal['strict', 'skip'] = 'strict'
+    raw_orphan_line_rule: Literal["strict", "skip"] = "strict"
     """
     What to do, if there are lines before the hunk beginning
     """
 
-    raw_orphan_nonewline_rule: Literal['strict', 'skip'] = 'strict'
+    raw_orphan_nonewline_rule: Literal["strict", "skip"] = "strict"
     """
     What to do, if there is NoNewLine line in empty hunk
     """
 
-    raw_empty_hunk_rule: Literal['strict', 'skip'] = 'strict'
+    raw_empty_hunk_rule: Literal["strict", "skip"] = "strict"
     """
     What to do with empty hunk
     """
+
 
 @dataclasses.dataclass
 class PatchConfig:
@@ -133,7 +143,7 @@ class PatchConfig:
     When enabled, `trim_string` is automatically set to True.
     """
 
-    ignore_case_rule: Literal['strict', 'ignore-all'] = 'strict'
+    ignore_case_rule: Literal["strict", "ignore-all"] = "strict"
     """
     strict -- do not ignore case.
     ignore-all -- Ignore case while matching any line.

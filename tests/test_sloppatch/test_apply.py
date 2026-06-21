@@ -6,13 +6,12 @@ from sloppatch.apply import (
     prepare_file_cache,
     spiral_range,
 )
-from sloppatch.data import AfterLine, Hunk, ParseConfig, Patch, RawAct, RawChange, RawHunk
+from sloppatch.data import ParseConfig, Patch, RawAct, RawChange, RawHunk
 import pytest
 
 from sloppatch.prepare import raw_patch_convert
 
 from .helpers import raw_to_patch_convert_nocfg
-
 
 
 class TestPreparePatch:
@@ -60,7 +59,9 @@ class TestPreparePatch:
         assert file.get_line_mask(999) is None
 
     def test_masks_respect_config(self, simple_patch) -> None:
-        cfg = PatchConfig(fuzz_context_lines=2, trim_string=True, ignore_case_rule='ignore-all')
+        cfg = PatchConfig(
+            fuzz_context_lines=2, trim_string=True, ignore_case_rule="ignore-all"
+        )
         lines = [
             "  A  \n",  # 1
             "  b  \n",  # 2
@@ -83,7 +84,6 @@ class TestPreparePatch:
         assert file.get_line_mask(2) == ("o l d\n", "old")
 
     def test_prepared_hunk_has_masks(self, simple_patch: Patch) -> None:
-        cfg = PatchConfig(trim_string=True)
         hunk = simple_patch[0]
         assert hunk.before_lines[0].mask == "old"
 
@@ -122,15 +122,17 @@ class TestHunkLineIndex:
 
     def test_correct_line(self, lines, cfg) -> None:
         patch = raw_patch_convert(
-            [RawHunk(
-                start_line=3,
-                comment="",
-                changes=[
-                    RawChange(RawAct.Delete, "3\n"),
-                    RawChange(RawAct.Add, "3_1\n"),
-                    RawChange(RawAct.Add, "3_2\n"),
-                ],
-            )],
+            [
+                RawHunk(
+                    start_line=3,
+                    comment="",
+                    changes=[
+                        RawChange(RawAct.Delete, "3\n"),
+                        RawChange(RawAct.Add, "3_1\n"),
+                        RawChange(RawAct.Add, "3_2\n"),
+                    ],
+                )
+            ],
             ParseConfig(),
             cfg,
         )
@@ -141,15 +143,17 @@ class TestHunkLineIndex:
 
     def test_line_before(self, lines, cfg) -> None:
         patch = raw_patch_convert(
-            [RawHunk(
-                start_line=3,
-                comment="",
-                changes=[
-                    RawChange(RawAct.Delete, "1\n"),
-                    RawChange(RawAct.Add, "1_1\n"),
-                    RawChange(RawAct.Add, "1_2\n"),
-                ],
-            )],
+            [
+                RawHunk(
+                    start_line=3,
+                    comment="",
+                    changes=[
+                        RawChange(RawAct.Delete, "1\n"),
+                        RawChange(RawAct.Add, "1_1\n"),
+                        RawChange(RawAct.Add, "1_2\n"),
+                    ],
+                )
+            ],
             ParseConfig(),
             cfg,
         )
@@ -160,15 +164,17 @@ class TestHunkLineIndex:
 
     def test_line_after(self, lines, cfg) -> None:
         patch = raw_patch_convert(
-            [RawHunk(
-                start_line=3,
-                comment="",
-                changes=[
-                    RawChange(RawAct.Delete, "6\n"),
-                    RawChange(RawAct.Add, "6_1\n"),
-                    RawChange(RawAct.Add, "6_2\n"),
-                ],
-            )],
+            [
+                RawHunk(
+                    start_line=3,
+                    comment="",
+                    changes=[
+                        RawChange(RawAct.Delete, "6\n"),
+                        RawChange(RawAct.Add, "6_1\n"),
+                        RawChange(RawAct.Add, "6_2\n"),
+                    ],
+                )
+            ],
             ParseConfig(),
             cfg,
         )
@@ -179,21 +185,23 @@ class TestHunkLineIndex:
 
     def test_not_found(self, lines, cfg) -> None:
         patch = raw_patch_convert(
-            [RawHunk(
-                start_line=3,
-                comment="",
-                changes=[
-                    RawChange(RawAct.Delete, "6\n"),
-                    RawChange(RawAct.Add, "000\n"),
-                    RawChange(RawAct.Context, "000\n"),
-                ],
-            )],
+            [
+                RawHunk(
+                    start_line=3,
+                    comment="",
+                    changes=[
+                        RawChange(RawAct.Delete, "6\n"),
+                        RawChange(RawAct.Add, "000\n"),
+                        RawChange(RawAct.Context, "000\n"),
+                    ],
+                )
+            ],
             ParseConfig(),
             cfg,
         )
         file_cache = prepare_file_cache(patch, cfg, lines)
         with pytest.raises(ValidatePatchLinesError, match="Unable to find"):
-            idx = hunk_place_line_nmb(hunk=patch[0], file=file_cache, cfg=cfg)
+            _ = hunk_place_line_nmb(hunk=patch[0], file=file_cache, cfg=cfg)
 
 
 class TestSpiralRange:

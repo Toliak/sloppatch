@@ -85,7 +85,7 @@ def parse_arguments(argv: List[str]) -> Tuple[Arguments, PatchConfig]:
     parser.add_argument(
         "--cfg-ignore-case",
         type=str,
-        choices=get_args(get_type_hints(PatchConfig)['ignore_case_rule']),
+        choices=get_args(get_type_hints(PatchConfig)["ignore_case_rule"]),
         help="Ignore case while matching any line (auto-enables --trim-string)",
         required=False,
     )

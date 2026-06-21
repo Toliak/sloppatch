@@ -56,4 +56,3 @@ class TestRaiseValidateHunk:
             ],
         )
         raise_validate_raw_hunk(hunk, ParseConfig())
-

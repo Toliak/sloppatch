@@ -3,17 +3,21 @@ Patch into the PreparedPatch (with the file knowledge).
 Applying to the file.
 """
 
-import dataclasses
-import itertools
-import re
-from typing import Iterable, Iterator, List, Literal, Optional, Tuple, assert_never
+from typing import Iterable, Iterator, List, Tuple, assert_never
 
-from .data import AfterLine, LineNmb, PatchConfig, PreparedHunk, PreparedPatch, RawAct, RawChange, RawHunk
+from .data import (
+    AfterLine,
+    LineNmb,
+    PatchConfig,
+    PreparedHunk,
+    PreparedPatch,
+    RawAct,
+    RawChange,
+    RawHunk,
+)
 from .error import SloppatchError, SloppatchInternalError
 from .sparse_file import SparsePatchFile
 from .prepare import Patch, Hunk, line_to_mask
-
-
 
 
 def _is_idx_in_range(idx: int, range_list: List[Tuple[int, int]]) -> bool:
@@ -22,6 +26,7 @@ def _is_idx_in_range(idx: int, range_list: List[Tuple[int, int]]) -> bool:
             return True
 
     return False
+
 
 def hunk_begin_line_range(
     hunk: RawHunk, file: SparsePatchFile, cfg: PatchConfig
@@ -35,6 +40,7 @@ def hunk_begin_line_range(
         max(hunk.start_line - cfg.fuzz_context_lines, 1),
         min(hunk.start_line + cfg.fuzz_context_lines + 1, file_lines_end),
     )
+
 
 def prepare_file_cache(
     patch: Patch, cfg: PatchConfig, lines_itr: Iterable[str]
@@ -76,7 +82,7 @@ def prepare_file_cache(
 def spiral_range(start: int, range_begin: int, range_end: int) -> Iterator[int]:
     if not (range_begin <= start < range_end):
         return
-    
+
     yield start
 
     begin_delta = abs(start - range_begin) + 1  # Included the begin nmb
@@ -90,8 +96,10 @@ def spiral_range(start: int, range_begin: int, range_end: int) -> Iterator[int]:
         if range_begin <= start_plus_delta < range_end:
             yield start_plus_delta
 
+
 class ValidatePatchLinesError(SloppatchError):
     pass
+
 
 def hunk_place_line_nmb(hunk: Hunk, file: SparsePatchFile, cfg: PatchConfig) -> LineNmb:
     """
@@ -105,7 +113,6 @@ def hunk_place_line_nmb(hunk: Hunk, file: SparsePatchFile, cfg: PatchConfig) -> 
 
     line_nmb: LineNmb
     for line_nmb in spiral_range(hunk.start_line, range_begin, range_end):
-
         for i, hunk_line in enumerate(hunk.before_lines):
             line_in_file: LineNmb = line_nmb + i
             if line_in_file >= file_lines_end:
@@ -131,7 +138,9 @@ def hunk_place_line_nmb(hunk: Hunk, file: SparsePatchFile, cfg: PatchConfig) -> 
     )
 
 
-def hunk_new_after_lines(hunk: Hunk, original_before_lines: List[str]) -> List[AfterLine]:
+def hunk_new_after_lines(
+    hunk: Hunk, original_before_lines: List[str]
+) -> List[AfterLine]:
     new_lines: List[AfterLine] = []
     original_line_idx = 0
     for c in hunk.changes:
@@ -140,19 +149,23 @@ def hunk_new_after_lines(hunk: Hunk, original_before_lines: List[str]) -> List[A
             case RawAct.Delete:
                 original_line_idx += 1
             case RawAct.Add:
-                new_lines.append(AfterLine(
-                    line = c.line,
-                    act = act,
-                    original = None,
-                    no_newline=c.no_newline if c.no_newline is not None else False
-                ))
+                new_lines.append(
+                    AfterLine(
+                        line=c.line,
+                        act=act,
+                        original=None,
+                        no_newline=c.no_newline if c.no_newline is not None else False,
+                    )
+                )
             case RawAct.Context:
-                new_lines.append(AfterLine(
-                    line = c.line,
-                    act = act,
-                    original = original_before_lines[original_line_idx],
-                    no_newline=False,
-                ))
+                new_lines.append(
+                    AfterLine(
+                        line=c.line,
+                        act=act,
+                        original=original_before_lines[original_line_idx],
+                        no_newline=False,
+                    )
+                )
                 original_line_idx += 1
             case _:
                 assert_never(act)
@@ -259,7 +272,7 @@ def apply_patch(patch: PreparedPatch, lines_itr: Iterable[str]) -> Iterator[str]
             else:
                 yield_line = line_data.line
                 if line_data.no_newline:
-                    if yield_line and yield_line[-1] == '\n':
+                    if yield_line and yield_line[-1] == "\n":
                         yield_line = yield_line[:-1]
 
                 yield yield_line

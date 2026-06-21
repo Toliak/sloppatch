@@ -1,5 +1,5 @@
 from typing import List, Optional
-from sloppatch.data import ParseConfig, Patch, PatchConfig, RawChange, RawAct, RawHunk, RawPatch
+from sloppatch.data import ParseConfig, Patch, PatchConfig, RawChange, RawAct, RawHunk
 from sloppatch.parse import lines_to_raw_changes
 from sloppatch.prepare import raw_patch_convert
 
@@ -32,6 +32,7 @@ def make_raw_hunk(
 
 def make_change(act: RawAct, line: str) -> RawChange:
     return RawChange(act=act, line=line)
+
 
 def raw_to_patch_convert_nocfg(raw: str) -> Patch:
     raw_patch = lines_to_raw_changes(raw)
