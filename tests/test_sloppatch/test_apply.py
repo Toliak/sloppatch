@@ -2,7 +2,7 @@ from typing import List
 from sloppatch.apply import (
     PatchConfig,
     ValidatePatchLinesError,
-    hunk_place_line_nmb,
+    hunk_fuzzy_place_line_nmb,
     prepare_file_cache,
     spiral_range,
 )
@@ -137,7 +137,7 @@ class TestHunkLineIndex:
             cfg,
         )
         file_cache = prepare_file_cache(patch, cfg, lines)
-        idx = hunk_place_line_nmb(hunk=patch[0], file=file_cache, cfg=cfg)
+        idx = hunk_fuzzy_place_line_nmb(hunk=patch[0], file=file_cache, cfg=cfg)
 
         assert idx == 3
 
@@ -158,7 +158,7 @@ class TestHunkLineIndex:
             cfg,
         )
         file_cache = prepare_file_cache(patch, cfg, lines)
-        idx = hunk_place_line_nmb(hunk=patch[0], file=file_cache, cfg=cfg)
+        idx = hunk_fuzzy_place_line_nmb(hunk=patch[0], file=file_cache, cfg=cfg)
 
         assert idx == 1
 
@@ -179,7 +179,7 @@ class TestHunkLineIndex:
             cfg,
         )
         file_cache = prepare_file_cache(patch, cfg, lines)
-        idx = hunk_place_line_nmb(hunk=patch[0], file=file_cache, cfg=cfg)
+        idx = hunk_fuzzy_place_line_nmb(hunk=patch[0], file=file_cache, cfg=cfg)
 
         assert idx == 6
 
@@ -201,7 +201,7 @@ class TestHunkLineIndex:
         )
         file_cache = prepare_file_cache(patch, cfg, lines)
         with pytest.raises(ValidatePatchLinesError, match="Unable to find"):
-            _ = hunk_place_line_nmb(hunk=patch[0], file=file_cache, cfg=cfg)
+            _ = hunk_fuzzy_place_line_nmb(hunk=patch[0], file=file_cache, cfg=cfg)
 
 
 class TestSpiralRange:

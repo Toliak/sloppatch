@@ -2,6 +2,8 @@ import dataclasses
 import enum
 from typing import List, Literal, Optional
 
+from sloppatch.error import SloppatchError
+
 LineIdx = int
 LineNmb = int
 
@@ -124,6 +126,8 @@ class ParseConfig:
     What to do with empty hunk
     """
 
+# class PatchConfigError(SloppatchError):
+#     pass
 
 @dataclasses.dataclass
 class PatchConfig:
@@ -149,3 +153,17 @@ class PatchConfig:
     ignore-all -- Ignore case while matching any line.
     # ignore-context -- Ignore case while matching context lines.
     """
+
+    skip_context_lines: int = 0
+    """
+    How many lines may be skipped inside the context.  The value must be less then the fuzz lines.
+    """
+
+    skip_context_lines_prefix_filter: List[str] = dataclasses.field(default_factory=list)
+    """
+    What lines we can skip.
+    Empty array = no filter.
+    """
+
+    # def validate(self) -> None:
+    #     raise PatchConfigError("Failed PatchConfig validation")

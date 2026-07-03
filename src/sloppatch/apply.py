@@ -3,10 +3,12 @@ Patch into the PreparedPatch (with the file knowledge).
 Applying to the file.
 """
 
-from typing import Iterable, Iterator, List, Tuple, assert_never
+from typing import Iterable, Iterator, List, Optional, Tuple, assert_never
 
 from .data import (
     AfterLine,
+    BeforeLine,
+    HunkLine,
     LineNmb,
     PatchConfig,
     PreparedHunk,
@@ -100,35 +102,70 @@ def spiral_range(start: int, range_begin: int, range_end: int) -> Iterator[int]:
 class ValidatePatchLinesError(SloppatchError):
     pass
 
-
-def hunk_place_line_nmb(hunk: Hunk, file: SparsePatchFile, cfg: PatchConfig) -> LineNmb:
+def hunk_place_at_line(hunk: Hunk, file: SparsePatchFile, line_nmb: LineNmb, cfg: PatchConfig) -> Optional[Hunk]:
     """
-    Returns line number and hunk original lines array
+    Returns a new hunk with the correct context.
+    Or None if we are unable to place it.
+    """
+    file_lines_end = file.get_lines_end()
+
+    i = 0
+    skipped_in_context_ctr = 0
+
+    new_before_lines: List[BeforeLine] = []
+    new_after_lines: List[HunkLine] = []
+
+    # TODO: loop over raw changes
+    # TODO: create two iterators: over the before and over after lines
+    # When new unknown line found -- just insert it
+
+    while i < len(hunk.before_lines):
+        hunk_line = hunk.before_lines[i]
+        line_in_file: LineNmb = line_nmb + i
+
+        if line_in_file >= file_lines_end:
+            return None
+
+        d = file.get_line_mask(line_in_file)
+        if d is None:
+            return None
+            # raise SloppatchInternalError(
+            #     f"Internal error. hunk_line_index, got None mask. Line number: {line_in_file}"
+            # )
+
+        if d[1] != hunk_line.mask:
+            if i == 0:
+                return None
+
+            if hunk_line.act == RawAct.Context or hunk.before_lines[i-1].act == RawAct.Context:
+                #  and d[0].lstrip().startswith()
+                skipped_in_context_ctr += 1
+                if skipped_in_context_ctr >= cfg.skip_context_lines:
+                    return None
+
+            return None
+        
+        i += 1
+
+    return Hunk
+
+
+# TODO: that function must return 
+def hunk_fuzzy_place_line_nmb(hunk: Hunk, file: SparsePatchFile, cfg: PatchConfig) -> LineNmb:
+    """
+    The core function, that detects the Hunk's line number.
+
+    Returns line number of the Hunk beginning
     """
     if not hunk.before_lines:
         return hunk.start_line
 
-    file_lines_end = file.get_lines_end()
     range_begin, range_end = hunk_begin_line_range(hunk, file, cfg)
 
     line_nmb: LineNmb
     for line_nmb in spiral_range(hunk.start_line, range_begin, range_end):
-        for i, hunk_line in enumerate(hunk.before_lines):
-            line_in_file: LineNmb = line_nmb + i
-            if line_in_file >= file_lines_end:
-                break
-
-            d = file.get_line_mask(line_in_file)
-            if d is None:
-                raise SloppatchInternalError(
-                    f"Internal error. hunk_line_index, got None mask. Line number: {line_in_file}"
-                )
-
-            if d[1] != hunk_line.mask:
-                break
-
-        else:
-            # Loop without errors -> ok
+        r = hunk_place_at_line(hunk, file, line_nmb, cfg)
+        if r is not None:
             return line_nmb
 
     raise ValidatePatchLinesError(
@@ -185,7 +222,7 @@ def prepare_patch_final(
     apply_line_idxs: List[LineNmb] = [-1] * len(patch)
 
     for i, hunk in enumerate(patch):
-        nmb: LineNmb = hunk_place_line_nmb(hunk, file_cache, cfg)
+        nmb: LineNmb = hunk_fuzzy_place_line_nmb(hunk, file_cache, cfg)
         apply_line_idxs[i] = nmb
 
     # Validation: there must be no overlaps
