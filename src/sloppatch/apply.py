@@ -16,6 +16,7 @@ from .data import (
     RawAct,
     RawChange,
     RawHunk,
+    RawHunkChanges,
 )
 from .error import SloppatchError, SloppatchInternalError
 from .sparse_file import SparsePatchFile
@@ -107,11 +108,7 @@ def hunk_place_at_line(hunk: Hunk, file: SparsePatchFile, line_nmb: LineNmb, cfg
     Returns a new hunk with the correct context.
     Or None if we are unable to place it.
     """
-    file_lines_end = file.get_lines_end()
-
-    i = 0
-    skipped_in_context_ctr = 0
-
+    new_raw_changes: RawHunkChanges = []
     new_before_lines: List[BeforeLine] = []
     new_after_lines: List[HunkLine] = []
 
@@ -119,46 +116,128 @@ def hunk_place_at_line(hunk: Hunk, file: SparsePatchFile, line_nmb: LineNmb, cfg
     # TODO: create two iterators: over the before and over after lines
     # When new unknown line found -- just insert it
 
-    while i < len(hunk.before_lines):
-        hunk_line = hunk.before_lines[i]
-        line_in_file: LineNmb = line_nmb + i
+    skip_context_offset = 0
 
-        if line_in_file >= file_lines_end:
-            return None
+    before_lines_i = 0
+    after_lines_i = 0
 
-        d = file.get_line_mask(line_in_file)
-        if d is None:
-            return None
-            # raise SloppatchInternalError(
-            #     f"Internal error. hunk_line_index, got None mask. Line number: {line_in_file}"
-            # )
+    for raw_change in hunk.changes:
+        match raw_change.act:
+            case RawAct.Add:
+                new_raw_changes.append(raw_change)
+                new_after_lines.append(hunk.after_lines[after_lines_i])
+                after_lines_i += 1
+                
+            case RawAct.Delete:
+                hunk_line = hunk.before_lines[before_lines_i]
+                line_in_file: LineNmb = line_nmb + before_lines_i + skip_context_offset
 
-        if d[1] != hunk_line.mask:
-            if i == 0:
-                return None
+                line_found: bool = False
+                skipped_lines: List[Tuple[str, str]] = []
 
-            if hunk_line.act == RawAct.Context or hunk.before_lines[i-1].act == RawAct.Context:
-                #  and d[0].lstrip().startswith()
-                skipped_in_context_ctr += 1
-                if skipped_in_context_ctr >= cfg.skip_context_lines:
+                for skip_i in range(0, cfg.skip_context_lines + 1):
+                    d = file.get_line_mask(line_in_file + skip_i)
+                    if d is None:
+                        # End of file or file cached fragment
+                        return None
+
+                    _file_line_raw, file_line_mask = d
+                    if file_line_mask != hunk_line.mask:
+                        skipped_lines.append(d)
+                    else:
+                        line_found = True
+                        break
+            
+                if line_found is False:
                     return None
-
-            return None
         
-        i += 1
+                for d in skipped_lines:
+                    new_raw_changes.append(RawChange(
+                        RawAct.Context,
+                        d[0]
+                    ))
+                    new_before_lines.append(BeforeLine(
+                        d[0],
+                        RawAct.Context,
+                        d[1]
+                    ))
+                    new_after_lines.append(HunkLine(
+                        d[0],
+                        RawAct.Context,
+                    ))
 
-    return Hunk
+                new_raw_changes.append(raw_change)
+                new_before_lines.append(hunk_line)
+                skip_context_offset += len(skipped_lines)
+                before_lines_i += 1
+                pass
 
+            case RawAct.Context:
+                hunk_line = hunk.before_lines[before_lines_i]
+                line_in_file = line_nmb + before_lines_i + skip_context_offset
+
+                line_found = False
+                skipped_lines = [] # List[Tuple[str, str]]
+
+                for skip_i in range(0, cfg.skip_context_lines + 1):
+                    d = file.get_line_mask(line_in_file + skip_i)
+                    if d is None:
+                        # End of file or file cached fragment
+                        return None
+
+                    _file_line_raw, file_line_mask = d
+                    if file_line_mask != hunk_line.mask:
+                        skipped_lines.append(d)
+                    else:
+                        line_found = True
+                        break
+            
+                if line_found is False:
+                    return None
+        
+                for d in skipped_lines:
+                    new_raw_changes.append(RawChange(
+                        RawAct.Context,
+                        d[0]
+                    ))
+                    new_before_lines.append(BeforeLine(
+                        d[0],
+                        RawAct.Context,
+                        d[1]
+                    ))
+                    new_after_lines.append(HunkLine(
+                        d[0],
+                        RawAct.Context,
+                    ))
+
+                new_raw_changes.append(raw_change)
+                new_before_lines.append(hunk_line)
+                new_after_lines.append(hunk_line)
+                skip_context_offset += len(skipped_lines)
+                before_lines_i += 1
+                after_lines_i += 1
+                pass
+
+            case _:
+                assert_never(raw_change.act)
+
+    return Hunk(
+        start_line=hunk.start_line,
+        comment=hunk.comment,
+        changes=new_raw_changes,
+        before_lines=new_before_lines,
+        after_lines=new_after_lines,
+    )
 
 # TODO: that function must return 
-def hunk_fuzzy_place_line_nmb(hunk: Hunk, file: SparsePatchFile, cfg: PatchConfig) -> LineNmb:
+def hunk_fuzzy_place_line_nmb(hunk: Hunk, file: SparsePatchFile, cfg: PatchConfig) -> Tuple[LineNmb, Hunk]:
     """
     The core function, that detects the Hunk's line number.
 
     Returns line number of the Hunk beginning
     """
     if not hunk.before_lines:
-        return hunk.start_line
+        return hunk.start_line, hunk
 
     range_begin, range_end = hunk_begin_line_range(hunk, file, cfg)
 
@@ -166,7 +245,7 @@ def hunk_fuzzy_place_line_nmb(hunk: Hunk, file: SparsePatchFile, cfg: PatchConfi
     for line_nmb in spiral_range(hunk.start_line, range_begin, range_end):
         r = hunk_place_at_line(hunk, file, line_nmb, cfg)
         if r is not None:
-            return line_nmb
+            return line_nmb, r
 
     raise ValidatePatchLinesError(
         "Unable to find hunk application line. "
@@ -219,20 +298,24 @@ def prepare_patch_final(
     Returns list of lines of beginnings of hunks. The same length as List[Hunk]
     """
 
-    apply_line_idxs: List[LineNmb] = [-1] * len(patch)
+    apply_line_idxs: List[LineNmb] = []
+    patch_placed: Patch = []        # TODO: HERE: rename this variable somehow
 
     for i, hunk in enumerate(patch):
-        nmb: LineNmb = hunk_fuzzy_place_line_nmb(hunk, file_cache, cfg)
-        apply_line_idxs[i] = nmb
+        line_nmb, new_hunk = hunk_fuzzy_place_line_nmb(hunk, file_cache, cfg)
+        apply_line_idxs.append(line_nmb)
+        patch_placed.append(new_hunk)
+
+    assert len(apply_line_idxs) == len(patch) == len(patch_placed)
 
     # Validation: there must be no overlaps
-    for i, (line_nmb, hunk) in enumerate(zip(apply_line_idxs, patch)):
+    for i, (line_nmb, hunk) in enumerate(zip(apply_line_idxs, patch_placed)):
         range_begin = line_nmb
         range_end = line_nmb + len(hunk.before_lines)
 
-        for j in range(i + 1, len(patch)):
+        for j in range(i + 1, len(patch_placed)):
             inner_i = apply_line_idxs[j]
-            inner_hunk = patch[j]
+            inner_hunk = patch_placed[j]
 
             inner_begin = inner_i
             inner_end = inner_i + len(inner_hunk.before_lines)
@@ -245,7 +328,7 @@ def prepare_patch_final(
                 )
 
     new_patch: List[PreparedHunk] = []
-    for line_nmb, hunk in zip(apply_line_idxs, patch):
+    for line_nmb, hunk in zip(apply_line_idxs, patch_placed):
         original_lines = [
             v[0]
             for v in [

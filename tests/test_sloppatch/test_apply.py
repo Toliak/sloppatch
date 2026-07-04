@@ -35,7 +35,7 @@ class TestPreparePatch:
     def test_patch_with_empty_hunk(self) -> None:
         cfg = PatchConfig(fuzz_context_lines=1)
         lines = ["line1\n", "line2\n", "line3\n", "line4\n", "line5\n"]
-        patch = raw_to_patch_convert_nocfg("")
+        patch = raw_to_patch_convert_nocfg([])
         file = prepare_file_cache(patch, cfg, lines)
 
         assert file._ranges == []
@@ -137,7 +137,7 @@ class TestHunkLineIndex:
             cfg,
         )
         file_cache = prepare_file_cache(patch, cfg, lines)
-        idx = hunk_fuzzy_place_line_nmb(hunk=patch[0], file=file_cache, cfg=cfg)
+        idx, _ = hunk_fuzzy_place_line_nmb(hunk=patch[0], file=file_cache, cfg=cfg)
 
         assert idx == 3
 
@@ -158,7 +158,7 @@ class TestHunkLineIndex:
             cfg,
         )
         file_cache = prepare_file_cache(patch, cfg, lines)
-        idx = hunk_fuzzy_place_line_nmb(hunk=patch[0], file=file_cache, cfg=cfg)
+        idx, _ = hunk_fuzzy_place_line_nmb(hunk=patch[0], file=file_cache, cfg=cfg)
 
         assert idx == 1
 
@@ -179,7 +179,7 @@ class TestHunkLineIndex:
             cfg,
         )
         file_cache = prepare_file_cache(patch, cfg, lines)
-        idx = hunk_fuzzy_place_line_nmb(hunk=patch[0], file=file_cache, cfg=cfg)
+        idx, _ = hunk_fuzzy_place_line_nmb(hunk=patch[0], file=file_cache, cfg=cfg)
 
         assert idx == 6
 

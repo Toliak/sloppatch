@@ -34,6 +34,6 @@ def make_change(act: RawAct, line: str) -> RawChange:
     return RawChange(act=act, line=line)
 
 
-def raw_to_patch_convert_nocfg(raw: str) -> Patch:
+def raw_to_patch_convert_nocfg(raw: List[str]) -> Patch:
     raw_patch = lines_to_raw_changes(raw)
     return raw_patch_convert(raw_patch, ParseConfig(), PatchConfig())

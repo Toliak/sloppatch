@@ -92,3 +92,49 @@ def test_full_pipeline_hunk_starts_from_add2() -> None:
 
     new_text = "".join(output_iterator)
     assert new_text == "0\n1"
+
+
+def test_full_pipeline_skip_context_lines() -> None:
+    """
+    Tests patch application when the input file is missing some context lines
+    that the patch specifies, using the skip_context_lines feature.
+    The patch expects lines 3, 9, 10, 11, 15, but the input file has gaps (missing 9, 10).
+    With skip_context_lines=2, the matcher should tolerate missing up to 2 consecutive
+    expected context lines before giving up.
+    """
+    # The patch expects context lines 3, 9, 10, 11, 15
+    patch_content = """# 7 # Hunk expecting some missing context
+=7
+=9
+=10
+=11
+-12
++12_new
+=14
+# 16 # Another hunk
+=16
+-17
++17_new
+"""
+    
+    # Input file is missing lines 9 and 10 compared to the patch's expectation.
+    # Line numbers effectively become: 1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 16, 17, 18
+    # So the hunk should find line 3, then skip 9/10, find 11, match/delete 12 (-> 11 in file), 
+    # add 12_new, and find 15 (-> 13 in file).
+    # The second hunk finds 16 (-> 14 in file), deletes 17 (-> 15 in file), adds 17_new.
+    input_text_content = "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n"
+
+    expected_output_content = "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12_new\n13\n14\n15\n16\n17_new\n18\n"
+
+    # Configure to allow skipping up to 2 context lines
+    config = PatchConfig(fuzz_context_lines=4, skip_context_lines=2, trim_string=True)
+
+    output_iterator = _output_iterator(input_text_content, patch_content, cfg=config)
+
+    new_text = "".join(output_iterator)
+    print(f"Input:\n{input_text_content}")
+    print(f"Patch:\n{patch_content}")
+    print(f"Expected:\n{expected_output_content}")
+    print(f"Actual:\n{new_text}")
+    assert new_text == expected_output_content, \
+        f"Patch application failed with missing context lines. Expected:\n{expected_output_content}\nGot:\n{new_text}"
