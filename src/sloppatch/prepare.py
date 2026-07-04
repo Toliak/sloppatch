@@ -51,6 +51,13 @@ def raise_validate_raw_hunk(raw_hunk: RawHunk, cfg: ParseConfig) -> Optional[Raw
             case "strict":
                 raise RawHunkValidationError("Empty hunk (no lines inside)")
 
+    if not any(change.act.is_before() for change in raw_hunk.changes):
+        match cfg.hunk_add_only_rule:
+            case "apply":
+                pass
+            case "reject":
+                raise RawHunkValidationError("Hunks that contain only Add operations are prohibited")
+
     return raw_hunk
 
 

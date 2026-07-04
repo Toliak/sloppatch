@@ -7,6 +7,7 @@ from sloppatch.apply import (
     ValidatePatchLinesError,
 )
 
+from sloppatch.data import ParseConfig
 from sloppatch.file import full_pipeline
 
 
@@ -30,6 +31,7 @@ def _output_iterator(
         input_get_io=lambda: _list_iterator(text_lines),
         patch_io=_list_iterator(patch_lines),
         patch_config=cfg_ready,
+        parse_config=ParseConfig(hunk_add_only_rule='apply')
     )
 
 

@@ -126,6 +126,14 @@ class ParseConfig:
     What to do with empty hunk
     """
 
+    hunk_add_only_rule: Literal['apply', 'reject'] = 'reject'
+    """
+    What to do with the hunk, that contains only "Add" operations
+
+    apply -- treat it as a valid hunk, apply it.
+    reject -- raise an error.
+    """
+
 # class PatchConfigError(SloppatchError):
 #     pass
 
@@ -161,3 +169,5 @@ class PatchConfig:
     Skipped lines are searched only before **Context** and **Delete** actions.
     When skipped lines are encountered, they are treated as additional Context lines.
     """
+
+    

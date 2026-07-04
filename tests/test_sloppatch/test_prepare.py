@@ -44,6 +44,21 @@ class TestRaiseValidateHunk:
         )
         raise_validate_raw_hunk(hunk, ParseConfig())
 
+    def test_only_additions_rejected(self) -> None:
+        hunk = make_raw_hunk(
+            1,
+            0,
+            3,
+            2,
+            changes=[
+                make_change(RawAct.Add, "x"),
+                make_change(RawAct.Add, "y"),
+            ],
+        )
+
+        with pytest.raises(RawHunkValidationError):
+            raise_validate_raw_hunk(hunk, ParseConfig())
+
     def test_only_additions_valid(self) -> None:
         hunk = make_raw_hunk(
             1,
@@ -55,4 +70,4 @@ class TestRaiseValidateHunk:
                 make_change(RawAct.Add, "y"),
             ],
         )
-        raise_validate_raw_hunk(hunk, ParseConfig())
+        raise_validate_raw_hunk(hunk, ParseConfig(hunk_add_only_rule='apply'))
