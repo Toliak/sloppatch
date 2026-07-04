@@ -174,8 +174,8 @@ def test_full_pipeline_only_add_patch_on_eof() -> None:
 
     output_iterator = _output_iterator(input_text_content, patch_content, cfg=PatchConfig())
 
-    with pytest.raises(ApplyPatchError, match="must contain.+context line"):
-        _new_text = "".join(output_iterator)
+    new_text = "".join(output_iterator)
+    assert new_text == "1\n2\n3\n4\n5\n6\n7\nAdd line"
 
 def test_full_pipeline_only_add_patch_on_eof_empty() -> None:
     patch_content = """# 1 #

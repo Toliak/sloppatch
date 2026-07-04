@@ -382,7 +382,9 @@ def _synced_after_lines_gen(synced_after_lines: List[AfterLine]) -> Iterator[str
 def apply_patch(patch: PreparedPatch, lines_itr: Iterable[str]) -> Iterator[str]:
     """
     Returns line-by-line content of the file.
-    We do not check the lines here. We assume, that they are the same as in file_cache
+    We do not check the lines here. We assume, that they are the same as in file_cache.
+
+    Each returned string contains EOL. Do not need to add anything on Joining
     """
 
     apply_line_nmbs = [hunk.begin_source_line for hunk in patch]
@@ -392,6 +394,7 @@ def apply_patch(patch: PreparedPatch, lines_itr: Iterable[str]) -> Iterator[str]
     skip_lines: int = 0
     applied_hunks: int = 0
     i: int = -1     # because we can receive empty file (without any lines)
+    last_yielded_line: str = ""
     for i, line in enumerate(lines_itr):
         assert skip_lines >= 0
         if skip_lines:
@@ -403,6 +406,7 @@ def apply_patch(patch: PreparedPatch, lines_itr: Iterable[str]) -> Iterator[str]
             hunk_begin_idx = apply_line_nmbs.index(line_nmb)
         except ValueError:
             # Not found
+            last_yielded_line = line
             yield line
             continue
 
@@ -411,11 +415,14 @@ def apply_patch(patch: PreparedPatch, lines_itr: Iterable[str]) -> Iterator[str]
         skip_lines = len(cur_hunk.before_lines) - 1
         applied_hunks += 1
 
-        yield from _synced_after_lines_gen(cur_hunk.synced_after_lines)
+        for line_to_yield in _synced_after_lines_gen(cur_hunk.synced_after_lines):
+            last_yielded_line = line_to_yield
+            yield line_to_yield
 
         if skip_lines == -1:
-            skip_lines = 0
             # Case, when Hunk contains only Add changes
+            skip_lines = 0
+            last_yielded_line = line
             yield line
 
     total_file_lines: LineNmb = i + 1
@@ -427,15 +434,10 @@ def apply_patch(patch: PreparedPatch, lines_itr: Iterable[str]) -> Iterator[str]
     else:
         cur_hunk = patch[hunk_begin_idx]
         if not cur_hunk.before_lines:
-            # Add-only hunk
-            if total_file_lines != 0:
-                # Not empty file
-                raise ApplyPatchError(
-                    "Unable to apply hunk. Add-only hunk must contain at least one context line for non-empty file"
-                    + f"Hunk: {cur_hunk.str_header()}, file total lines: {total_file_lines}"
-                )
-        
-            # Edge-case: hunk with add-only for empty file
+            # Add-only hunk. Edge-case: "Append to the file" action
+            if total_file_lines != 0 and not last_yielded_line.endswith("\n"):
+                yield '\n'
+
             yield from _synced_after_lines_gen(cur_hunk.synced_after_lines)
             applied_hunks += 1
 
@@ -443,7 +445,7 @@ def apply_patch(patch: PreparedPatch, lines_itr: Iterable[str]) -> Iterator[str]
         i = len(apply_line_nmbs) - 1 - j
         if line_nmb <= total_file_lines + 1:
             break
-        
+
         hunk = patch[i]
         raise ApplyPatchError(
             "Unable to apply hunk (EOF). "
