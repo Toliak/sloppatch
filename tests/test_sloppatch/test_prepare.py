@@ -70,4 +70,4 @@ class TestRaiseValidateHunk:
                 make_change(RawAct.Add, "y"),
             ],
         )
-        raise_validate_raw_hunk(hunk, ParseConfig(hunk_add_only_rule='apply'))
+        raise_validate_raw_hunk(hunk, ParseConfig(hunk_add_only_rule="apply"))

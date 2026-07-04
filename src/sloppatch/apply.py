@@ -60,7 +60,12 @@ def prepare_file_cache(
     fuzz_line_ranges: List[Tuple[LineNmb, LineNmb]] = []
     for hunk in patch:
         start_line = max(hunk.start_line - cfg.fuzz_context_lines, 1)
-        end_line = hunk.start_line + len(hunk.before_lines) + cfg.fuzz_context_lines + cfg.skip_context_lines
+        end_line = (
+            hunk.start_line
+            + len(hunk.before_lines)
+            + cfg.fuzz_context_lines
+            + cfg.skip_context_lines
+        )
         fuzz_line_ranges.append((start_line, end_line))
 
     first_line = min(v[0] for v in fuzz_line_ranges)
@@ -103,7 +108,10 @@ def spiral_range(start: int, range_begin: int, range_end: int) -> Iterator[int]:
 class ValidatePatchLinesError(SloppatchError):
     pass
 
-def hunk_place_at_line(hunk: Hunk, file: SparsePatchFile, line_nmb: LineNmb, cfg: PatchConfig) -> Optional[Hunk]:
+
+def hunk_place_at_line(
+    hunk: Hunk, file: SparsePatchFile, line_nmb: LineNmb, cfg: PatchConfig
+) -> Optional[Hunk]:
     """
     Returns a new hunk with the correct context.
     Or None if we are unable to place it.
@@ -125,7 +133,7 @@ def hunk_place_at_line(hunk: Hunk, file: SparsePatchFile, line_nmb: LineNmb, cfg
                 new_raw_changes.append(raw_change)
                 new_after_lines.append(hunk.after_lines[after_lines_i])
                 after_lines_i += 1
-                
+
             case RawAct.Delete | RawAct.Context as in_act:
                 hunk_line = hunk.before_lines[before_lines_i]
                 line_in_file: LineNmb = line_nmb + before_lines_i + skip_context_offset
@@ -133,7 +141,9 @@ def hunk_place_at_line(hunk: Hunk, file: SparsePatchFile, line_nmb: LineNmb, cfg
                 line_found: bool = False
                 skipped_lines: List[Tuple[str, str]] = []
 
-                for skip_i in range(0, (cfg.skip_context_lines - skip_context_offset) + 1):
+                for skip_i in range(
+                    0, (cfg.skip_context_lines - skip_context_offset) + 1
+                ):
                     d = file.get_line_mask(line_in_file + skip_i)
                     if d is None:
                         # End of file or file cached fragment
@@ -145,25 +155,20 @@ def hunk_place_at_line(hunk: Hunk, file: SparsePatchFile, line_nmb: LineNmb, cfg
                     else:
                         line_found = True
                         break
-            
+
                 if line_found is False:
                     return None
-        
+
                 for d in skipped_lines:
                     # "Edit" the patch, add skipped lines
-                    new_raw_changes.append(RawChange(
-                        RawAct.Context,
-                        d[0]
-                    ))
-                    new_before_lines.append(BeforeLine(
-                        d[0],
-                        RawAct.Context,
-                        d[1]
-                    ))
-                    new_after_lines.append(HunkLine(
-                        d[0],
-                        RawAct.Context,
-                    ))
+                    new_raw_changes.append(RawChange(RawAct.Context, d[0]))
+                    new_before_lines.append(BeforeLine(d[0], RawAct.Context, d[1]))
+                    new_after_lines.append(
+                        HunkLine(
+                            d[0],
+                            RawAct.Context,
+                        )
+                    )
 
                 new_raw_changes.append(raw_change)
                 new_before_lines.append(hunk_line)
@@ -186,7 +191,10 @@ def hunk_place_at_line(hunk: Hunk, file: SparsePatchFile, line_nmb: LineNmb, cfg
         after_lines=new_after_lines,
     )
 
-def hunk_fuzzy_place_line_nmb(hunk: Hunk, file: SparsePatchFile, cfg: PatchConfig) -> Tuple[LineNmb, Hunk]:
+
+def hunk_fuzzy_place_line_nmb(
+    hunk: Hunk, file: SparsePatchFile, cfg: PatchConfig
+) -> Tuple[LineNmb, Hunk]:
     """
     The core function, that detects the Hunk's line number.
 
@@ -245,6 +253,7 @@ def hunk_new_after_lines(
     assert len(new_lines) == len(hunk.after_lines)
     return new_lines
 
+
 def prepare_patch_final(
     patch: Patch, file_cache: SparsePatchFile, cfg: PatchConfig
 ) -> PreparedPatch:
@@ -265,8 +274,8 @@ def prepare_patch_final(
 
     # Validation: there must be no overlaps
     for i, (line_nmb, hunk) in enumerate(zip(apply_line_idxs, patch_placed)):
-        range_begin = line_nmb      # incl
-        range_end = line_nmb + len(hunk.before_lines)       # excl
+        range_begin = line_nmb  # incl
+        range_end = line_nmb + len(hunk.before_lines)  # excl
         if range_begin == range_end:
             # Hunk with Add only edge-case
             range_end += 1
@@ -322,13 +331,13 @@ def _synced_after_lines_gen(synced_after_lines: List[AfterLine]) -> Iterator[str
             line = line_data.original
 
             if (
-                line_data.act == RawAct.Context 
-                and not (line.endswith("\n")) 
-                and i + 1 < len(synced_after_lines) 
-                and synced_after_lines[i+1].act == RawAct.Add
+                line_data.act == RawAct.Context
+                and not (line.endswith("\n"))
+                and i + 1 < len(synced_after_lines)
+                and synced_after_lines[i + 1].act == RawAct.Add
             ):
                 # Edge-case: end of file without EOL. And +Add after it
-                yield line_data.original + '\n'
+                yield line_data.original + "\n"
             else:
                 yield line_data.original
         else:
@@ -337,6 +346,7 @@ def _synced_after_lines_gen(synced_after_lines: List[AfterLine]) -> Iterator[str
                 if yield_line and yield_line[-1] == "\n":
                     yield_line = yield_line[:-1]
             yield yield_line
+
 
 def apply_patch(patch: PreparedPatch, lines_itr: Iterable[str]) -> Iterator[str]:
     """
@@ -352,7 +362,7 @@ def apply_patch(patch: PreparedPatch, lines_itr: Iterable[str]) -> Iterator[str]
     line_nmb: LineNmb = -1
     skip_lines: int = 0
     applied_hunks: int = 0
-    i: int = -1     # because we can receive empty file (without any lines)
+    i: int = -1  # because we can receive empty file (without any lines)
     last_yielded_line: str = ""
     for i, line in enumerate(lines_itr):
         assert skip_lines >= 0
@@ -395,7 +405,7 @@ def apply_patch(patch: PreparedPatch, lines_itr: Iterable[str]) -> Iterator[str]
         if not cur_hunk.before_lines:
             # Add-only hunk. Edge-case: "Append to the file" action
             if total_file_lines != 0 and not last_yielded_line.endswith("\n"):
-                yield '\n'
+                yield "\n"
 
             yield from _synced_after_lines_gen(cur_hunk.synced_after_lines)
             applied_hunks += 1

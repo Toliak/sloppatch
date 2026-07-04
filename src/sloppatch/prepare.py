@@ -56,7 +56,9 @@ def raise_validate_raw_hunk(raw_hunk: RawHunk, cfg: ParseConfig) -> Optional[Raw
             case "apply":
                 pass
             case "reject":
-                raise RawHunkValidationError("Hunks that contain only Add operations are prohibited")
+                raise RawHunkValidationError(
+                    "Hunks that contain only Add operations are prohibited"
+                )
 
     return raw_hunk
 

@@ -31,7 +31,7 @@ def _output_iterator(
         input_get_io=lambda: _list_iterator(text_lines),
         patch_io=_list_iterator(patch_lines),
         patch_config=cfg_ready,
-        parse_config=ParseConfig(hunk_add_only_rule='apply')
+        parse_config=ParseConfig(hunk_add_only_rule="apply"),
     )
 
 
@@ -104,7 +104,7 @@ def test_full_pipeline_skip_context_lines() -> None:
     """
     Tests patch application when the input file is missing some context lines
     """
-    
+
     # Missing context 8 and 13
     patch_content = """# 7 # Hunk expecting some missing context
 =7
@@ -119,10 +119,14 @@ def test_full_pipeline_skip_context_lines() -> None:
 -17
 +17_new
 """
-    
-    input_text_content = "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n"
 
-    expected_output_content = "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12_new\n13\n14\n15\n16\n17_new\n18\n"
+    input_text_content = (
+        "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n"
+    )
+
+    expected_output_content = (
+        "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12_new\n13\n14\n15\n16\n17_new\n18\n"
+    )
 
     # Configure to allow skipping up to 2 context lines
     config = PatchConfig(fuzz_context_lines=4, skip_context_lines=2, trim_string=True)
@@ -131,6 +135,7 @@ def test_full_pipeline_skip_context_lines() -> None:
 
     new_text = "".join(output_iterator)
     assert new_text == expected_output_content
+
 
 def test_full_pipeline_multiple_patches_with_same_begin_line_num() -> None:
     patch_content = """# 5 #
@@ -143,16 +148,20 @@ def test_full_pipeline_multiple_patches_with_same_begin_line_num() -> None:
     with pytest.raises(ValidatePatchLinesError, match="overlap"):
         _ = _output_iterator(input_text_content, patch_content, cfg=PatchConfig())
 
+
 def test_full_pipeline_only_add_patch() -> None:
     patch_content = """# 5 #
 +Add line
 """
     input_text_content = "1\n2\n3\n4\n5\n6\n7"
 
-    output_iterator = _output_iterator(input_text_content, patch_content, cfg=PatchConfig())
+    output_iterator = _output_iterator(
+        input_text_content, patch_content, cfg=PatchConfig()
+    )
 
     new_text = "".join(output_iterator)
     assert new_text == "1\n2\n3\n4\nAdd line\n5\n6\n7"
+
 
 def test_full_pipeline_only_add_patch_no_newline_in_text() -> None:
     patch_content = """# 7 #
@@ -162,10 +171,13 @@ def test_full_pipeline_only_add_patch_no_newline_in_text() -> None:
 """
     input_text_content = "1\n2\n3\n4\n5\n6\n7"
 
-    output_iterator = _output_iterator(input_text_content, patch_content, cfg=PatchConfig())
+    output_iterator = _output_iterator(
+        input_text_content, patch_content, cfg=PatchConfig()
+    )
 
     new_text = "".join(output_iterator)
     assert new_text == "1\n2\n3\n4\n5\n6\n7\nAdd line"
+
 
 def test_full_pipeline_only_add_patch_on_eof() -> None:
     patch_content = """# 8 #
@@ -174,10 +186,13 @@ def test_full_pipeline_only_add_patch_on_eof() -> None:
 """
     input_text_content = "1\n2\n3\n4\n5\n6\n7"
 
-    output_iterator = _output_iterator(input_text_content, patch_content, cfg=PatchConfig())
+    output_iterator = _output_iterator(
+        input_text_content, patch_content, cfg=PatchConfig()
+    )
 
     new_text = "".join(output_iterator)
     assert new_text == "1\n2\n3\n4\n5\n6\n7\nAdd line"
+
 
 def test_full_pipeline_only_add_patch_on_eof_empty() -> None:
     patch_content = """# 1 #
@@ -185,10 +200,13 @@ def test_full_pipeline_only_add_patch_on_eof_empty() -> None:
 """
     input_text_content = ""
 
-    output_iterator = _output_iterator(input_text_content, patch_content, cfg=PatchConfig())
+    output_iterator = _output_iterator(
+        input_text_content, patch_content, cfg=PatchConfig()
+    )
 
     new_text = "".join(output_iterator)
     assert new_text == "Add line\n"
+
 
 def test_full_pipeline_patch_with_EOF_line() -> None:
     patch_content = """# 500 #
@@ -196,10 +214,13 @@ def test_full_pipeline_patch_with_EOF_line() -> None:
 """
     input_text_content = "1\n2\n3\n4\n5\n6\n7"
 
-    output_iterator = _output_iterator(input_text_content, patch_content, cfg=PatchConfig())
+    output_iterator = _output_iterator(
+        input_text_content, patch_content, cfg=PatchConfig()
+    )
 
     with pytest.raises(ApplyPatchError, match="EOF"):
         _ = "".join(output_iterator)
+
 
 def test_full_pipeline_skip_budget_total():
     cfg = PatchConfig(skip_context_lines=2)
@@ -224,13 +245,16 @@ D
     output_iterator = _output_iterator(input_text_content, patch_content, cfg=cfg)
 
     new_text = "".join(output_iterator)
-    assert new_text == """A
+    assert (
+        new_text
+        == """A
 x
 B
 C
 y
 D
 z"""
+    )
 
 
 def test_full_pipeline_skip_before_delete() -> None:
@@ -278,24 +302,16 @@ def test_full_pipeline_fuzzy_uses_nearest_duplicate_not_first() -> None:
 """
 
     input_text_content = (
-        "foo\n"   # 1
-        "bar\n"   # 2
+        "foo\n"  # 1
+        "bar\n"  # 2
         "x\n"
-        "foo\n"   # 4 <-- nearest
-        "bar\n"   # 5 
-        "foo\n"   # 6
-        "bar\n"   # 7
+        "foo\n"  # 4 <-- nearest
+        "bar\n"  # 5
+        "foo\n"  # 6
+        "bar\n"  # 7
     )
 
-    expected_output_content = (
-        "foo\n"
-        "bar\n"
-        "x\n"
-        "foo\n"
-        "BAR\n"
-        "foo\n"
-        "bar\n"
-    )
+    expected_output_content = "foo\nbar\nx\nfoo\nBAR\nfoo\nbar\n"
 
     config = PatchConfig(
         fuzz_context_lines=3,
