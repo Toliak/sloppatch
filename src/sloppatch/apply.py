@@ -126,7 +126,7 @@ def hunk_place_at_line(hunk: Hunk, file: SparsePatchFile, line_nmb: LineNmb, cfg
                 new_after_lines.append(hunk.after_lines[after_lines_i])
                 after_lines_i += 1
                 
-            case RawAct.Delete:
+            case RawAct.Delete | RawAct.Context as in_act:
                 hunk_line = hunk.before_lines[before_lines_i]
                 line_in_file: LineNmb = line_nmb + before_lines_i + skip_context_offset
 
@@ -150,6 +150,7 @@ def hunk_place_at_line(hunk: Hunk, file: SparsePatchFile, line_nmb: LineNmb, cfg
                     return None
         
                 for d in skipped_lines:
+                    # "Edit" the patch, add skipped lines
                     new_raw_changes.append(RawChange(
                         RawAct.Context,
                         d[0]
@@ -168,53 +169,11 @@ def hunk_place_at_line(hunk: Hunk, file: SparsePatchFile, line_nmb: LineNmb, cfg
                 new_before_lines.append(hunk_line)
                 skip_context_offset += len(skipped_lines)
                 before_lines_i += 1
-                pass
 
-            case RawAct.Context:
-                hunk_line = hunk.before_lines[before_lines_i]
-                line_in_file = line_nmb + before_lines_i + skip_context_offset
-
-                line_found = False
-                skipped_lines = [] # List[Tuple[str, str]]
-
-                for skip_i in range(0, (cfg.skip_context_lines - skip_context_offset) + 1):
-                    d = file.get_line_mask(line_in_file + skip_i)
-                    if d is None:
-                        # End of file or file cached fragment
-                        return None
-
-                    _file_line_raw, file_line_mask = d
-                    if file_line_mask != hunk_line.mask:
-                        skipped_lines.append(d)
-                    else:
-                        line_found = True
-                        break
-            
-                if line_found is False:
-                    return None
-        
-                for d in skipped_lines:
-                    new_raw_changes.append(RawChange(
-                        RawAct.Context,
-                        d[0]
-                    ))
-                    new_before_lines.append(BeforeLine(
-                        d[0],
-                        RawAct.Context,
-                        d[1]
-                    ))
-                    new_after_lines.append(HunkLine(
-                        d[0],
-                        RawAct.Context,
-                    ))
-
-                new_raw_changes.append(raw_change)
-                new_before_lines.append(hunk_line)
-                new_after_lines.append(hunk_line)
-                skip_context_offset += len(skipped_lines)
-                before_lines_i += 1
-                after_lines_i += 1
-                pass
+                if in_act == RawAct.Context:
+                    # For the Context: AfterLines must contain the current line
+                    new_after_lines.append(hunk_line)
+                    after_lines_i += 1
 
             case _:
                 assert_never(raw_change.act)
