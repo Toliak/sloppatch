@@ -156,14 +156,8 @@ class PatchConfig:
 
     skip_context_lines: int = 0
     """
-    How many lines may be skipped inside the context.  The value must be less then the fuzz lines.
-    """
+    Maximum total number of lines that may be skipped while matching a single hunk.
 
-    skip_context_lines_prefix_filter: List[str] = dataclasses.field(default_factory=list)
+    Skipped lines are searched only before **Context** and **Delete** actions.
+    When skipped lines are encountered, they are treated as additional Context lines.
     """
-    What lines we can skip.
-    Empty array = no filter.
-    """
-
-    # def validate(self) -> None:
-    #     raise PatchConfigError("Failed PatchConfig validation")

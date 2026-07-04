@@ -30,7 +30,7 @@ class SparsePatchFile:
     def __init__(self) -> None:
         self._ranges: List[FileRange] = []
 
-    def add_new_line(self, line_idx: int, line: str, mask: str):
+    def add_new_line(self, line_nmb: int, line: str, mask: str):
         """
         This function supports:
         - appending line to the last existing range
@@ -45,26 +45,26 @@ class SparsePatchFile:
             last_range = self._ranges[ranges_len - 1]
             r_start = last_range.line_start
             r_end = last_range.get_line_end()
-            if r_end == line_idx:
+            if r_end == line_nmb:
                 # Add the line to the range
                 last_range.lines.append(line)
                 last_range.masks.append(mask)
                 return
 
-            if r_start <= line_idx < r_end:
+            if r_start <= line_nmb < r_end:
                 raise SparsePatchFileError(
                     "Collision, unable to add new line. "
-                    + f"line_idx={line_idx} range=({r_start}, {r_end})"
+                    + f"line_idx={line_nmb} range=({r_start}, {r_end})"
                 )
 
-            if line_idx < r_start:
+            if line_nmb < r_start:
                 raise SparsePatchFileError(
                     "Collision, unable to add new line before the last range. "
-                    + f"line_idx={line_idx} range=({r_start}, {r_end})"
+                    + f"line_idx={line_nmb} range=({r_start}, {r_end})"
                 )
 
         # line_idx > r_end
-        self._ranges.append(FileRange(line_start=line_idx, lines=[line], masks=[mask]))
+        self._ranges.append(FileRange(line_start=line_nmb, lines=[line], masks=[mask]))
 
     @functools.lru_cache(maxsize=1024)
     def get_line_mask(self, line_idx: int) -> Optional[Tuple[str, str]]:
