@@ -72,7 +72,7 @@ def lines_to_raw_changes(
     result: List[RawHunk] = []
     for i, line in enumerate(lines_itr):
         line_nmb: LineNmb = i + 1
-        if not line:
+        if not line or line in ("\n", "\r\n", "\r"):
             match cfg_ready.raw_empty_lines_rule:
                 case "skip":
                     continue
