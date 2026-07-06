@@ -6,19 +6,22 @@ from pathlib import Path
 import random
 import string
 import sys
-from typing import Iterator, List, Optional, Tuple, get_args, get_type_hints
+from typing import Dict, Iterator, List, Optional, Tuple, get_args, get_type_hints
 
-from sloppatch.config import PatchConfig
+from sloppatch.config import ParseConfig, PatchConfig
 from sloppatch.error import SloppatchError
 from sloppatch.file import file_to_lines_iter, full_pipeline, lines_iter_to_file
-from sloppatch.patch.prepare_by_file import ValidatePatchLinesSimilarityError
-from sloppatch.patch.raw_parse_data import RawAct
+from sloppatch.patch.apply import apply_patch
+from sloppatch.patch.convert import raw_patch_convert
+from sloppatch.patch.prepare_by_file import ValidatePatchLinesSimilarityError, prepare_file_cache, prepare_patch_final
+from sloppatch.patch.raw_parse_data import RawAct, RawHunk, RawPatch
+from .unified import parse_unified_diff_to_raw_patches
 
 # SCRIPT_DIR = Path(__file__).parent
 # PROJECT_DIR = SCRIPT_DIR
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class Arguments:
     """Dataclass to store parsed arguments"""
 
@@ -31,6 +34,11 @@ class Arguments:
     inline: bool
     """
     True if editing file in-place, False otherwise
+    """
+
+    unified: bool
+    """
+    Apply Unified patches using Sloppatch tool
     """
 
 
@@ -50,6 +58,13 @@ def parse_arguments(argv: List[str]) -> Tuple[Arguments, PatchConfig]:
     )
     parser.add_argument(
         "-o", "--output", type=Path, help="Output file path", required=False
+    )
+    parser.add_argument(
+        "-U",
+        "--unified",
+        action="store_true",
+        help="Treat the patch as a Unified diff",
+        required=False,
     )
     parser.add_argument(
         "-L",
@@ -121,6 +136,7 @@ def parse_arguments(argv: List[str]) -> Tuple[Arguments, PatchConfig]:
         patch_file=args.patch,
         output_file=args.output,
         inline=args.inline or False,
+        unified=args.unified or False,
     )
     return (args_data, patch_config)
 
@@ -142,22 +158,96 @@ def _act_to_char(act: RawAct) -> str:
         case RawAct.Delete:
             return '-'
 
-def main():
-    argv = sys.argv[1:]
-    args, patch_config = parse_arguments(argv)
 
-    print(f"Input file: {args.input_file}", file=sys.stderr)
-    print(f"Patch file: {args.patch_file}", file=sys.stderr)
-    print(f"Output file: {args.output_file}", file=sys.stderr)
-    print(f"Inline mode: {args.inline}", file=sys.stderr)
+def apply_raw_patch_to_file(
+    file_path: Path, 
+    raw_patch: List[RawHunk], 
+    parse_config: ParseConfig, 
+    patch_config: PatchConfig,
+    output_path: Optional[Path] = None,
+    inline: bool = False
+):
+    """
+    Apply a list of RawHunk objects to a single file using the internal pipeline.
+    """
+    patch_conv = raw_patch_convert(raw_patch, parse_config, patch_config)
+    
+    input_io = lambda: file_to_lines_iter(file_path)
+                
+    file_cache = prepare_file_cache(patch_conv, patch_config, input_io())
+    prepared_patch = prepare_patch_final(patch_conv, file_cache, patch_config)
+    output_iterator = apply_patch(prepared_patch, input_io())
+    
+    if output_path or inline:
+        temp_path = file_path.parent / (file_path.name + ".tmp")
+        with open(temp_path, "wt", encoding="UTF-8", newline="\n") as f_output:
+            for line in output_iterator:
+                f_output.write(line)
+                
+        if inline:
+            os.rename(temp_path, file_path)
+        else:
+            assert output_path is not None
+            os.rename(temp_path, output_path)
+    else:
+        for line in output_iterator:
+            print(line, end="")
 
+
+def cli_apply_unified(args: Arguments, patch_config: PatchConfig) -> None:
+    base_dir = args.input_file
+    if not base_dir.is_dir():
+        raise RuntimeError(f"Input (base dir in Unified mode) '{base_dir}' is not a directory")
+    if args.output_file is not None:
+        print("Output file will be ignored in Unified mode", file=sys.stderr)
+    
+    with open(args.patch_file, "rt", encoding="UTF-8") as f:
+        patch_lines = f.readlines()
+        
+    file_to_raw_patch = parse_unified_diff_to_raw_patches(patch_lines)
+
+    for file_rel_path, hunks in file_to_raw_patch.items():
+        target_file = base_dir / file_rel_path
+        if not target_file.is_file():
+            print(f"Warning: Target file '{target_file}' not found. Skipping.", file=sys.stderr)
+            continue
+
+        out_file = None
+        if args.output_file:
+            # Treat output_file as a destination directory in unified mode
+            out_file = args.output_file / file_rel_path
+            out_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        try:
+            apply_raw_patch_to_file(
+                file_path=target_file, 
+                raw_patch=hunks, 
+                parse_config=ParseConfig(), 
+                patch_config=patch_config,
+                output_path=out_file,
+                # Default to inline if no output directory is specified to avoid dumping mixed files to stdout
+                inline=args.inline or (args.output_file is None)
+            )
+        except ValidatePatchLinesSimilarityError as e:
+            print("Error while applying patch", file=sys.stderr)
+            print(str(e), file=sys.stderr)
+            max_change_idx = e.similar.max_change_idx
+            print(f"Maximum similar place to the hunk on Line={e.similar.line}. Accepted changes ({max_change_idx}):", file=sys.stderr)
+            for c in e.hunk.changes[:max_change_idx]:
+                print(_act_to_char(c.act), c.line.rstrip(), sep='', file=sys.stderr)
+            sys.exit(1)
+        except SloppatchError as e:
+            print("Error while applying patch", file=sys.stderr)
+            print(str(e), file=sys.stderr)
+            sys.exit(1)
+        print(f"Applied patch to '{target_file}'", file=sys.stderr)
+
+def cli_apply_sloppatch(args: Arguments, patch_config: PatchConfig) -> None:
     if not args.input_file.is_file():
         raise RuntimeError(f"Input '{args.input_file}' is not a file")
-    if not args.patch_file.is_file():
-        raise RuntimeError(f"Patch '{args.patch_file}' is not a file")
     if args.output_file and args.output_file.exists():
-        raise RuntimeError(f"Output '{args.patch_file}' already exists")
-
+        raise RuntimeError(f"Output '{args.patch_file}' already exists. Specify '--inline' instead")
+    
     output_file_temp = args.input_file.parent / (
         args.input_file.name + "." + create_random_suffix()
     )
@@ -168,16 +258,16 @@ def main():
             patch_config=patch_config,
         )
     except ValidatePatchLinesSimilarityError as e:
-        print("Error while applying patch")
-        print(str(e))
+        print("Error while applying patch", file=sys.stderr)
+        print(str(e), file=sys.stderr)
         max_change_idx = e.similar.max_change_idx
-        print(f"Maximum similar place to the hunk on Line={e.similar.line}. Accepted changes ({max_change_idx}):")
+        print(f"Maximum similar place to the hunk on Line={e.similar.line}. Accepted changes ({max_change_idx}):", file=sys.stderr)
         for c in e.hunk.changes[:max_change_idx]:
-            print(_act_to_char(c.act), c.line.rstrip(), sep='')
+            print(_act_to_char(c.act), c.line.rstrip(), sep='', file=sys.stderr)
         sys.exit(1)
     except SloppatchError as e:
-        print("Error while applying patch")
-        print(str(e))
+        print("Error while applying patch", file=sys.stderr)
+        print(str(e), file=sys.stderr)
         sys.exit(1)
 
     if args.output_file or args.inline:
@@ -195,6 +285,23 @@ def main():
     else:
         for line in output_iterator:
             print(line, end="")
+
+def main() -> None:
+    argv = sys.argv[1:]
+    args, patch_config = parse_arguments(argv)
+
+    print(f"Input file: {args.input_file}", file=sys.stderr)
+    print(f"Patch file: {args.patch_file}", file=sys.stderr)
+    print(f"Output file: {args.output_file}", file=sys.stderr)
+    print(f"Inline mode: {args.inline}", file=sys.stderr)
+    
+    if not args.patch_file.is_file():
+        raise RuntimeError(f"Patch '{args.patch_file}' is not a file")
+
+    if args.unified:
+        return cli_apply_unified(args, patch_config)
+    else:
+        return cli_apply_sloppatch(args, patch_config)
 
 
 if __name__ == "__main__":

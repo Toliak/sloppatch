@@ -367,10 +367,57 @@ def test_full_pipeline_empty_file() -> None:
         trim_string=True,
     )
 
+    with pytest.raises(ValidatePatchLinesError, match='Empty file'):
+        output_iterator = _output_iterator(
+            "",
+            patch_content,
+            cfg=config,
+        )
+
+def test_full_pipeline_internal_fail_why_maybe_useless_test() -> None:
+    patch_content = """# 1 # 
+=A
+=B
+=C
+-D
+-E
+-F
++45
++46
++47
++48
++49
+=
+-G
+-H
+-I
+-J
++g
++Test line1"""
+
+    input_text_content = """A
+B
+C
+D
+E
+F
+
+G
+H
+I
+J"""
+
+    expected_output_content = "A\nB\nC\n45\n46\n47\n48\n49\n\ng\nTest line1"
+
+    config = PatchConfig(
+        fuzz_context_lines=3,
+        trim_string=True,
+    )
+
     output_iterator = _output_iterator(
-        "",
+        input_text_content,
         patch_content,
         cfg=config,
     )
 
-    assert "".join(output_iterator) == ""
+    assert "".join(output_iterator) == expected_output_content
