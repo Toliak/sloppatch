@@ -1,14 +1,11 @@
 from typing import Iterator, List, Optional
 
 import pytest
-from sloppatch.apply import (
-    ApplyPatchError,
-    PatchConfig,
-    ValidatePatchLinesError,
-)
 
-from sloppatch.data import ParseConfig
+from sloppatch.config import ParseConfig, PatchConfig
 from sloppatch.file import full_pipeline
+from sloppatch.patch.apply import ApplyPatchError
+from sloppatch.patch.prepare_by_file import ValidatePatchLinesError
 
 
 def _list_iterator(item_list: List[str]) -> Iterator[str]:
@@ -31,7 +28,7 @@ def _output_iterator(
         input_get_io=lambda: _list_iterator(text_lines),
         patch_io=_list_iterator(patch_lines),
         patch_config=cfg_ready,
-        parse_config=ParseConfig(hunk_add_only_rule="apply"),
+        parse_config=ParseConfig(hunk_add_only_rule="apply", raw_empty_lines_rule='skip', raw_empty_hunk_rule='skip'),
     )
 
 
@@ -122,6 +119,39 @@ def test_full_pipeline_skip_context_lines() -> None:
 
     input_text_content = (
         "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n"
+    )
+
+    expected_output_content = (
+        "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12_new\n13\n14\n15\n16\n17_new\n18\n"
+    )
+
+    # Configure to allow skipping up to 2 context lines
+    config = PatchConfig(fuzz_context_lines=4, skip_context_lines=2, trim_string=True)
+
+    output_iterator = _output_iterator(input_text_content, patch_content, cfg=config)
+
+    new_text = "".join(output_iterator)
+    assert new_text == expected_output_content
+
+def test_full_pipeline_mixed_hunk() -> None:
+    """
+    Tests patch application when the input file is missing some context lines
+    """
+
+    # Missing context 8 and 13
+    patch_content = """# 7 # Hunk expecting some missing context
+=7
+
+=8
+# 16 # Empty
+# 16 # Another hunk
+=16
+-17
++17_new
+"""
+
+    input_text_content = (
+        "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12_new\n13\n14\n15\n16\n17\n18\n"
     )
 
     expected_output_content = (

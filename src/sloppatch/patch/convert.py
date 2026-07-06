@@ -1,5 +1,7 @@
 """
-RawHunks text into the Patch (ready to apply over a file).
+Patch, Stage 2.
+
+RawPatch text into the Patch (ready to apply over a file).
 Without knowledge of the target file.
 """
 
@@ -7,23 +9,19 @@ import dataclasses
 import re
 from typing import List, Optional, Tuple, assert_never
 
-from .error import SloppatchError
-from .data import (
-    BeforeLine,
-    HunkLine,
-    Patch,
+from .util_mask import line_to_mask
+
+from .convert_data import BeforeLine, Hunk, HunkLine, Patch
+from ..utils.types import LineNmb
+
+from .raw_parse_data import RawHunk, RawPatch
+from ..utils.misc import ANY_WHITESPACE_RE
+
+from ..error import SloppatchError
+from ..config import (
     PatchConfig,
-    RawHunk,
-    RawPatch,
-    Hunk,
     ParseConfig,
 )
-
-
-@dataclasses.dataclass(frozen=True)
-class CountLinesResult:
-    before: int
-    after: int
 
 
 class RawHunkValidationError(SloppatchError):
@@ -68,7 +66,7 @@ class PatchValidationError(SloppatchError):
 
 
 def raise_validate_patch(patch: Patch) -> None:
-    line_before_ranges: List[Tuple[int, int, Hunk]] = []
+    line_before_ranges: List[Tuple[LineNmb, LineNmb, Hunk]] = []
 
     # Verify the absence of range overlaps
     for hunk in patch:
@@ -86,37 +84,6 @@ def raise_validate_patch(patch: Patch) -> None:
                 )
 
         line_before_ranges.append((lb_begin, lb_end, hunk))
-
-
-ANY_WHITESPACE_RE = re.compile(r"\s+")
-
-
-def line_to_mask(line: str, cfg: PatchConfig) -> str:
-    if not line:
-        return line
-
-    new_line = line
-    if new_line[-1] == "\n":
-        new_line = new_line[:-1]
-
-    if cfg.ignore_whitespaces:
-        new_line = re.sub(ANY_WHITESPACE_RE, "", new_line)
-
-    if cfg.trim_string and not cfg.ignore_whitespaces:
-        new_line = new_line.strip()
-
-    match cfg.ignore_case_rule:
-        case "strict":
-            pass  # do noting
-        case "ignore-all":
-            new_line = new_line.lower()
-        # case 'ignore-context':
-        #     if act == RawAct.Context:
-        #         new_line = new_line.lower()
-        case _:
-            assert_never(cfg.ignore_case_rule)
-
-    return new_line
 
 
 def raw_hunk_convert(raw_hunk: RawHunk, cfg: PatchConfig) -> Hunk:

@@ -1,4 +1,6 @@
 """
+Patch, Stage 1.
+
 Raw text into the list of RawHunks.
 Without knowledge of the target file.
 """
@@ -8,8 +10,11 @@ import enum
 import re
 from typing import Iterable, List, Literal, Optional, assert_never
 
-from .error import SloppatchError
-from .data import LineNmb, RawAct, RawHunk, RawChange, RawPatch, ParseConfig
+from .raw_parse_data import RawAct, RawChange, RawHunk, RawPatch
+from ..utils.types import LineNmb
+
+from ..error import SloppatchError
+from ..config import ParseConfig
 
 SLOP_DATA_HEADER: re.Pattern = re.compile(r"^[ ]+(\d+)[ ]+#(.*)$", re.DOTALL)
 HEADER_FORMAT_VERBOSE = "# <START LINE NUMBER> # <COMMENT>"

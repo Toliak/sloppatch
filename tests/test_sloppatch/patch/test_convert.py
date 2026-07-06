@@ -1,12 +1,10 @@
-from sloppatch.data import RawAct
 import pytest
-from sloppatch.data import ParseConfig
-from sloppatch.prepare import (
-    RawHunkValidationError,
-    raise_validate_raw_hunk,
-)
+from sloppatch.config import ParseConfig
+from sloppatch.patch.convert import RawHunkValidationError, raise_validate_raw_hunk
+from sloppatch.patch.raw_parse_data import RawAct, RawHunk
 
-from .helpers import make_change, make_raw_hunk
+
+from ..helpers import make_change, make_raw_hunk
 
 
 class TestRaiseValidateHunk:
@@ -71,3 +69,14 @@ class TestRaiseValidateHunk:
             ],
         )
         raise_validate_raw_hunk(hunk, ParseConfig(hunk_add_only_rule="apply"))
+
+
+    def test_wrong_start_line(self) -> None:
+        hunk = RawHunk(
+            start_line=-1,
+            comment="",
+            changes=[],
+        )
+
+        with pytest.raises(RawHunkValidationError, match="must start from 1"):
+            raise_validate_raw_hunk(hunk, ParseConfig())

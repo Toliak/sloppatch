@@ -4,8 +4,11 @@
 	python3 -m venv .venv
 	.venv/bin/pip install -e .[dev]
 
+COV_ENABLED = $(and $(COV),$(filter-out 0,$(COV)))
+COV_ARGS = $(if $(filter 1,$(COV)),--cov-report html:.pytest_htmlcov --cov=src,)
+
 test:
-	pytest tests
+	pytest $(COV_ARGS) tests
 
 mypy:
 	mypy . --check-untyped-defs

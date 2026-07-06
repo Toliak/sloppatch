@@ -1,4 +1,4 @@
-from sloppatch.sparse_file import SparsePatchFile, SparsePatchFileError
+from sloppatch.utils.sparse_file import SparsePatchFile, SparsePatchFileError
 import pytest
 
 

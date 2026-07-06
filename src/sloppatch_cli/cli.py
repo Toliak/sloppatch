@@ -8,10 +8,8 @@ import string
 import sys
 from typing import Iterator, List, Optional, Tuple, get_args, get_type_hints
 
-from sloppatch.apply import (
-    PatchConfig,
-)
-from sloppatch.file import full_pipeline
+from sloppatch.config import PatchConfig
+from sloppatch.file import file_to_lines_iter, full_pipeline, lines_iter_to_file
 
 # SCRIPT_DIR = Path(__file__).parent
 # PROJECT_DIR = SCRIPT_DIR
@@ -136,23 +134,17 @@ def main():
     if args.output_file and args.output_file.exists():
         raise RuntimeError(f"Output '{args.patch_file}' already exists")
 
-    def _file_lines_iterator(path: Path) -> Iterator[str]:
-        with open(path, "rt", encoding="UTF-8") as f:
-            line = f.readline()
-            while line:
-                yield line
-                line = f.readline()
-
     output_file_temp = args.input_file.parent / (
         args.input_file.name + "." + create_random_suffix()
     )
     output_iterator = full_pipeline(
-        input_get_io=lambda: _file_lines_iterator(args.input_file),
-        patch_io=_file_lines_iterator(args.patch_file),
+        input_get_io=lambda: file_to_lines_iter(args.input_file),
+        patch_io=file_to_lines_iter(args.patch_file),
         patch_config=patch_config,
     )
 
     if args.output_file or args.inline:
+        lines_iter_to_file(output_iterator, output_file_temp)
         with open(output_file_temp, "wt", encoding="UTF-8", newline="\n") as f_output:
             for line in output_iterator:
                 f_output.write(line)

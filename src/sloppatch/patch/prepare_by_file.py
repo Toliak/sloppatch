@@ -1,35 +1,28 @@
 """
+Patch, Stage 3.
+
 Patch into the PreparedPatch (with the file knowledge).
 Applying to the file.
 """
 
 from typing import Iterable, Iterator, List, Optional, Tuple, assert_never
 
-from .data import (
-    AfterLine,
-    BeforeLine,
-    HunkLine,
-    LineNmb,
+from sloppatch.patch.util_mask import line_to_mask
+
+from .prepare_by_file_data import PreparedAfterLine, PreparedHunk, PreparedPatch
+
+from .convert_data import BeforeLine, HunkLine, Patch, Hunk
+
+from .raw_parse_data import RawAct, RawChange, RawHunk, RawHunkChanges
+from ..utils.misc import range_list_contains
+from ..utils.types import LineNmb
+
+from ..config import (
     PatchConfig,
-    PreparedHunk,
-    PreparedPatch,
-    RawAct,
-    RawChange,
-    RawHunk,
-    RawHunkChanges,
 )
-from .error import SloppatchError, SloppatchInternalError
-from .sparse_file import SparsePatchFile
-from .prepare import Patch, Hunk, line_to_mask
-
-
-def _is_idx_in_range(idx: int, range_list: List[Tuple[int, int]]) -> bool:
-    for r in range_list:
-        if r[0] <= idx < r[1]:
-            return True
-
-    return False
-
+from ..error import SloppatchError
+from ..utils.sparse_file import SparsePatchFile
+from ..utils.spiral_range import spiral_range
 
 def hunk_begin_line_range(
     hunk: RawHunk, file: SparsePatchFile, cfg: PatchConfig
@@ -80,34 +73,19 @@ def prepare_file_cache(
         if line_nmb >= last_line:
             break
 
-        if _is_idx_in_range(line_nmb, fuzz_line_ranges):
+        if range_list_contains(line_nmb, fuzz_line_ranges):
             mask = line_to_mask(line, cfg)
             file_cache.add_new_line(line_nmb, line, mask)
 
     return file_cache
 
 
-def spiral_range(start: int, range_begin: int, range_end: int) -> Iterator[int]:
-    if not (range_begin <= start < range_end):
-        return
-
-    yield start
-
-    begin_delta = abs(start - range_begin) + 1  # Included the begin nmb
-    end_delta = abs(range_end - start)
-    for delta in range(1, max(begin_delta, end_delta)):
-        start_minus_delta = start - delta
-        if range_begin <= start_minus_delta < range_end:
-            yield start_minus_delta
-
-        start_plus_delta = start + delta
-        if range_begin <= start_plus_delta < range_end:
-            yield start_plus_delta
-
-
 class ValidatePatchLinesError(SloppatchError):
     pass
 
+
+
+# HunkPlaceAtLineResultT = Hunk
 
 def hunk_place_at_line(
     hunk: Hunk, file: SparsePatchFile, line_nmb: LineNmb, cfg: PatchConfig
@@ -220,8 +198,8 @@ def hunk_fuzzy_place_line_nmb(
 
 def hunk_new_after_lines(
     hunk: Hunk, original_before_lines: List[str]
-) -> List[AfterLine]:
-    new_lines: List[AfterLine] = []
+) -> List[PreparedAfterLine]:
+    new_lines: List[PreparedAfterLine] = []
     original_line_idx = 0
     for c in hunk.changes:
         act = c.act
@@ -230,7 +208,7 @@ def hunk_new_after_lines(
                 original_line_idx += 1
             case RawAct.Add:
                 new_lines.append(
-                    AfterLine(
+                    PreparedAfterLine(
                         line=c.line,
                         act=act,
                         original=None,
@@ -239,7 +217,7 @@ def hunk_new_after_lines(
                 )
             case RawAct.Context:
                 new_lines.append(
-                    AfterLine(
+                    PreparedAfterLine(
                         line=c.line,
                         act=act,
                         original=original_before_lines[original_line_idx],
@@ -318,117 +296,3 @@ def prepare_patch_final(
         new_patch.append(new_hunk)
 
     return new_patch
-
-
-class ApplyPatchError(SloppatchError):
-    pass
-
-
-def _synced_after_lines_gen(synced_after_lines: List[AfterLine]) -> Iterator[str]:
-    """Helper generator to yield the resulting lines for a hunk's `synced_after_lines`."""
-    for i, line_data in enumerate(synced_after_lines):
-        if line_data.original is not None:
-            line = line_data.original
-
-            if (
-                line_data.act == RawAct.Context
-                and not (line.endswith("\n"))
-                and i + 1 < len(synced_after_lines)
-                and synced_after_lines[i + 1].act == RawAct.Add
-            ):
-                # Edge-case: end of file without EOL. And +Add after it
-                yield line_data.original + "\n"
-            else:
-                yield line_data.original
-        else:
-            yield_line = line_data.line
-            if line_data.no_newline:
-                if yield_line and yield_line[-1] == "\n":
-                    yield_line = yield_line[:-1]
-            yield yield_line
-
-
-def apply_patch(patch: PreparedPatch, lines_itr: Iterable[str]) -> Iterator[str]:
-    """
-    Returns line-by-line content of the file.
-    We do not check the lines here. We assume, that they are the same as in file_cache.
-
-    Each returned string contains EOL. Do not need to add anything on Joining
-    """
-
-    apply_line_nmbs = [hunk.begin_source_line for hunk in patch]
-
-    # Application main loop
-    line_nmb: LineNmb = -1
-    skip_lines: int = 0
-    applied_hunks: int = 0
-    i: int = -1  # because we can receive empty file (without any lines)
-    last_yielded_line: str = ""
-    for i, line in enumerate(lines_itr):
-        assert skip_lines >= 0
-        if skip_lines:
-            skip_lines -= 1
-            continue
-
-        line_nmb = i + 1
-        try:
-            hunk_begin_idx = apply_line_nmbs.index(line_nmb)
-        except ValueError:
-            # Not found
-            last_yielded_line = line
-            yield line
-            continue
-
-        cur_hunk = patch[hunk_begin_idx]
-        # What if hunk contains 0 lines
-        skip_lines = len(cur_hunk.before_lines) - 1
-        applied_hunks += 1
-
-        for line_to_yield in _synced_after_lines_gen(cur_hunk.synced_after_lines):
-            last_yielded_line = line_to_yield
-            yield line_to_yield
-
-        if skip_lines == -1:
-            # Case, when Hunk contains only Add changes
-            skip_lines = 0
-            last_yielded_line = line
-            yield line
-
-    total_file_lines: LineNmb = i + 1
-    try:
-        hunk_begin_idx = apply_line_nmbs.index(total_file_lines + 1)
-    except ValueError:
-        # Not found
-        pass
-    else:
-        cur_hunk = patch[hunk_begin_idx]
-        if not cur_hunk.before_lines:
-            # Add-only hunk. Edge-case: "Append to the file" action
-            if total_file_lines != 0 and not last_yielded_line.endswith("\n"):
-                yield "\n"
-
-            yield from _synced_after_lines_gen(cur_hunk.synced_after_lines)
-            applied_hunks += 1
-
-    for j, line_nmb in enumerate(reversed(apply_line_nmbs)):
-        i = len(apply_line_nmbs) - 1 - j
-        if line_nmb <= total_file_lines + 1:
-            break
-
-        hunk = patch[i]
-        raise ApplyPatchError(
-            "Unable to apply hunk (EOF). "
-            + f"Hunk: {hunk.str_header()}, file total lines: {total_file_lines}"
-        )
-
-    expected_applied_hunks = len(patch)
-    if applied_hunks != expected_applied_hunks:
-        raise SloppatchInternalError(
-            "Not all patches were applied. "
-            + f"Expected: {expected_applied_hunks}, Applied: {applied_hunks}"
-        )
-
-    # We cannot do the check like that!
-    # Check number of applied hunks instead
-    # if line_idx != expected_lines:
-    # raise ApplyPatchError(f"Mismatched number of lines. Read {line_idx}, expected {expected_lines}")

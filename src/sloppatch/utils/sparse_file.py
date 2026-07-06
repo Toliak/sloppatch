@@ -95,24 +95,3 @@ class SparsePatchFile:
 
     def is_empty(self) -> bool:
         return not self._ranges
-
-    # def add_line(self, line_idx: int, line: str, mask: str):
-    #     # Here we assume that the lines will be appended more often
-    #     for r in reversed(self._ranges):
-    #         r_start = r.line_start
-    #         r_end = r.line_start + len(r.lines)
-
-    #         # Line change
-    #         if r_start <= line_idx < r_end:
-    #             idx = line_idx - r_start
-    #             r.lines[idx] = line
-    #             r.masks[idx] = mask
-    #             return
-
-    #         # Line add into the existing r
-    #         if
-
-    # New range
-
-    # validate that there is no ranges that overhang
-    # we cannot add the lines in the middle

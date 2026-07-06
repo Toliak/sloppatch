@@ -1,97 +1,5 @@
 import dataclasses
-import enum
 from typing import List, Literal, Optional
-
-from sloppatch.error import SloppatchError
-
-LineIdx = int
-LineNmb = int
-
-
-class RawAct(enum.Enum):
-    Context = "Context"
-    Add = "Add"
-    Delete = "Delete"
-
-    def is_after(self):
-        return self == RawAct.Context or self == RawAct.Add
-
-    def is_before(self):
-        return self == RawAct.Context or self == RawAct.Delete
-
-
-@dataclasses.dataclass(frozen=True, slots=True)
-class RawChange:
-    act: RawAct
-    line: str
-    no_newline: bool = False
-
-
-RawHunkChanges = List[RawChange]
-
-
-@dataclasses.dataclass
-class RawHunk:
-    start_line: LineNmb
-    comment: str
-    changes: RawHunkChanges
-    """
-    Raw changes info
-    """
-
-    def str_header(self) -> str:
-        return f"# {self.start_line} # {self.comment}"
-
-
-RawPatch = List[RawHunk]
-
-
-@dataclasses.dataclass(frozen=True, slots=True)
-class HunkLine:
-    line: str
-    """
-    Line from hunk
-    """
-
-    act: RawAct
-
-
-@dataclasses.dataclass(frozen=True, slots=True)
-class BeforeLine(HunkLine):
-    mask: str
-    """
-    Line masked
-    """
-
-
-@dataclasses.dataclass
-class Hunk(RawHunk):
-    before_lines: List[BeforeLine]
-    after_lines: List[HunkLine]
-
-
-Patch = List[Hunk]
-
-
-@dataclasses.dataclass(frozen=True, slots=True)
-class AfterLine(HunkLine):
-    original: Optional[str]
-    """
-    Line from the source text
-    """
-    no_newline: bool
-
-
-@dataclasses.dataclass
-class PreparedHunk(Hunk):
-    begin_source_line: LineNmb
-    synced_after_lines: List[AfterLine]
-
-
-PreparedPatch = List[PreparedHunk]
-"""
-The Patch final stage.
-"""
 
 
 @dataclasses.dataclass
@@ -133,10 +41,6 @@ class ParseConfig:
     apply -- treat it as a valid hunk, apply it.
     reject -- raise an error.
     """
-
-
-# class PatchConfigError(SloppatchError):
-#     pass
 
 
 @dataclasses.dataclass

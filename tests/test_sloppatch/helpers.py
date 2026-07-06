@@ -1,8 +1,10 @@
 from typing import List, Optional
-from sloppatch.data import ParseConfig, Patch, PatchConfig, RawChange, RawAct, RawHunk
-from sloppatch.parse import lines_to_raw_changes
-from sloppatch.prepare import raw_patch_convert
 
+from sloppatch.config import ParseConfig, PatchConfig
+from sloppatch.patch.convert import raw_patch_convert
+from sloppatch.patch.convert_data import Patch
+from sloppatch.patch.raw_parse import lines_to_raw_changes
+from sloppatch.patch.raw_parse_data import RawAct, RawChange, RawHunk
 
 def make_raw_hunk(
     before_line: int,

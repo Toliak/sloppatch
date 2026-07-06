@@ -1,15 +1,35 @@
-from typing import Callable, Iterator, Optional
+from pathlib import Path
+from typing import TYPE_CHECKING, Callable, Iterator, Optional, TextIO
 
-from .prepare import raw_patch_convert
-from .apply import (
+from sloppatch.utils.types import OpenTextModeReading, OpenTextModeWriting
+
+from .patch.convert import raw_patch_convert
+from .patch.prepare_by_file import (
     PatchConfig,
-    apply_patch,
     prepare_file_cache,
     prepare_patch_final,
 )
-from .parse import lines_to_raw_changes
-from .data import ParseConfig
+from .patch.apply import apply_patch
+from .patch.raw_parse import lines_to_raw_changes
+from .config import ParseConfig
 
+def textio_to_lines_iter(text_io: TextIO) -> Iterator[str]:
+    line = text_io.readline()
+    while line:
+        yield line
+        line = text_io.readline()
+
+def file_to_lines_iter(path: Path, mode: OpenTextModeReading = "rt", encoding: str = "UTF-8") -> Iterator[str]:
+    with open(path, mode, encoding=encoding) as f:
+        yield from textio_to_lines_iter(f)
+
+def lines_iter_to_textio(iter: Iterator[str], text_io_out: TextIO) -> None:
+    for line in iter:
+        text_io_out.write(line)
+
+def lines_iter_to_file(iter: Iterator[str], path: Path, mode: OpenTextModeWriting = "wt", encoding: str = "UTF-8", newline: str = "\n") -> None:
+    with open(path, mode, encoding=encoding, newline=newline) as f:
+        lines_iter_to_textio(iter, f)
 
 def full_pipeline(
     input_get_io: Callable[[], Iterator[str]],

@@ -3,6 +3,8 @@
         "ms-python.python",
         "wayou.vscode-todo-highlight",
         "streetsidesoftware.code-spell-checker",
-        "tamasfe.even-better-toml"
+        "tamasfe.even-better-toml",
+        "ms-python.mypy-type-checker",
+        "RARI.custom-file-order"
     ]
 }

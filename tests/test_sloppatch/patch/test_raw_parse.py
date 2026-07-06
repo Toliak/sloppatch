@@ -1,6 +1,7 @@
-from sloppatch.data import RawChange, RawAct
-from sloppatch.parse import LineParseError, lines_to_raw_changes
 import pytest
+
+from sloppatch.patch.raw_parse import LineParseError, lines_to_raw_changes
+from sloppatch.patch.raw_parse_data import RawAct, RawChange
 
 
 class TestLinesToRawChanges:
@@ -63,6 +64,16 @@ class TestLinesToRawChanges:
     def test_change_without_hunk_raises(self) -> None:
         lines = ["-orphan change\n"]
         with pytest.raises(LineParseError, match="Line 1.+before Hunk"):
+            lines_to_raw_changes(iter(lines))
+
+    def test_change_without_hunk_raises2(self) -> None:
+        lines = ["/\n"]
+        with pytest.raises(LineParseError, match="Line 1.+before Hunk"):
+            lines_to_raw_changes(iter(lines))
+
+    def test_no_newline_without_changes(self) -> None:
+        lines = ["# 1 #\n", "/\n"]
+        with pytest.raises(LineParseError):
             lines_to_raw_changes(iter(lines))
 
     def test_unknown_format_raises(self) -> None:

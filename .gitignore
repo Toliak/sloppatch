@@ -6,5 +6,5 @@ __pycache__
 *.egg-info
 *.pyc
 build
-
-*.local.*
+.pytest_htmlcov
+.coverage
