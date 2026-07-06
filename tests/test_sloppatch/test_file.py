@@ -355,3 +355,22 @@ def test_full_pipeline_fuzzy_uses_nearest_duplicate_not_first() -> None:
     )
 
     assert "".join(output_iterator) == expected_output_content
+
+def test_full_pipeline_empty_file() -> None:
+    patch_content = """# 1 #
+=foo
++aaa
+"""
+
+    config = PatchConfig(
+        fuzz_context_lines=3,
+        trim_string=True,
+    )
+
+    output_iterator = _output_iterator(
+        "",
+        patch_content,
+        cfg=config,
+    )
+
+    assert "".join(output_iterator) == ""

@@ -23,9 +23,6 @@ def line_to_mask(line: str, cfg: PatchConfig) -> str:
             pass  # do noting
         case "ignore-all":
             new_line = new_line.lower()
-        # case 'ignore-context':
-        #     if act == RawAct.Context:
-        #         new_line = new_line.lower()
         case _:
             assert_never(cfg.ignore_case_rule)
 

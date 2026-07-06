@@ -2,5 +2,5 @@ class SloppatchError(RuntimeError):
     pass
 
 
-class SloppatchInternalError(SloppatchError):
+class SloppatchInternalError(RuntimeError):
     pass

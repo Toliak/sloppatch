@@ -5,6 +5,7 @@ Patch into the PreparedPatch (with the file knowledge).
 Applying to the file.
 """
 
+import dataclasses
 from typing import Iterable, Iterator, List, Optional, Tuple, assert_never
 
 from sloppatch.patch.util_mask import line_to_mask
@@ -83,13 +84,13 @@ def prepare_file_cache(
 class ValidatePatchLinesError(SloppatchError):
     pass
 
-
-
-# HunkPlaceAtLineResultT = Hunk
+@dataclasses.dataclass(frozen=True, slots=True)
+class HunkPlaceAtLineSimilarity:
+    max_change_idx: int
 
 def hunk_place_at_line(
     hunk: Hunk, file: SparsePatchFile, line_nmb: LineNmb, cfg: PatchConfig
-) -> Optional[Hunk]:
+) -> Hunk | HunkPlaceAtLineSimilarity:
     """
     Returns a new hunk with the correct context.
     Or None if we are unable to place it.
@@ -105,7 +106,7 @@ def hunk_place_at_line(
     before_lines_i = 0
     after_lines_i = 0
 
-    for raw_change in hunk.changes:
+    for change_idx, raw_change in enumerate(hunk.changes):
         match raw_change.act:
             case RawAct.Add:
                 new_raw_changes.append(raw_change)
@@ -125,7 +126,7 @@ def hunk_place_at_line(
                     d = file.get_line_mask(line_in_file + skip_i)
                     if d is None:
                         # End of file or file cached fragment
-                        return None
+                        return HunkPlaceAtLineSimilarity(change_idx)
 
                     _file_line_raw, file_line_mask = d
                     if file_line_mask != hunk_line.mask:
@@ -135,7 +136,7 @@ def hunk_place_at_line(
                         break
 
                 if line_found is False:
-                    return None
+                    return HunkPlaceAtLineSimilarity(change_idx)
 
                 for d in skipped_lines:
                     # "Edit" the patch, add skipped lines
@@ -169,6 +170,17 @@ def hunk_place_at_line(
         after_lines=new_after_lines,
     )
 
+@dataclasses.dataclass(frozen=True, slots=True)
+class FuzzyMaxSimilarPlace:
+    max_change_idx: int
+    line: LineNmb
+
+class ValidatePatchLinesSimilarityError(ValidatePatchLinesError):
+    def __init__(self, similar: FuzzyMaxSimilarPlace, hunk: Hunk, *args):
+        self.similar = similar
+        self.hunk = hunk
+        super().__init__(*args)
+
 
 def hunk_fuzzy_place_line_nmb(
     hunk: Hunk, file: SparsePatchFile, cfg: PatchConfig
@@ -183,17 +195,35 @@ def hunk_fuzzy_place_line_nmb(
 
     range_begin, range_end = hunk_begin_line_range(hunk, file, cfg)
 
+    max_similar: Optional[FuzzyMaxSimilarPlace] = None
+
     line_nmb: LineNmb
     for line_nmb in spiral_range(hunk.start_line, range_begin, range_end):
         r = hunk_place_at_line(hunk, file, line_nmb, cfg)
-        if r is not None:
-            return line_nmb, r
+        match r:
+            case Hunk() as h:
+                return line_nmb, h
+            case HunkPlaceAtLineSimilarity() as similarity:
+                if max_similar is None or max_similar.max_change_idx < similarity.max_change_idx:
+                    max_similar = FuzzyMaxSimilarPlace(
+                        max_change_idx=similarity.max_change_idx,
+                        line=line_nmb
+                    )
 
-    raise ValidatePatchLinesError(
-        "Unable to find hunk application line. "
-        + f"Hunk: {hunk.str_header()}. "
-        + f"Line range: ({range_begin}, {range_end})"
-    )
+    if max_similar is None:
+        raise ValidatePatchLinesError(
+                "Unable to find hunk application line. Got empty line range. Empty file? "
+                + f"Hunk: {hunk.str_header()}. "
+                + f"Line range: ({range_begin}, {range_end})"
+            )
+    else:
+        raise ValidatePatchLinesSimilarityError(
+            max_similar,
+            hunk,
+            "Unable to find hunk application line. "
+            + f"Hunk: {hunk.str_header()}. "
+            + f"Line range: ({range_begin}, {range_end})"
+        )
 
 
 def hunk_new_after_lines(
