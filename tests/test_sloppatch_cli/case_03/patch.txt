@@ -1,0 +1,21 @@
+# 1 #
+=A
+=B
+=C
+-D
+-E
+-F
++45
++46
++47
++48
++49
+=
+-G
+-H
+-I
+-J
+/ No newline at end of file
++g
++Test line1
+/ No newline at end of file

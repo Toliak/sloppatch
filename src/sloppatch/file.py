@@ -28,6 +28,10 @@ def lines_iter_to_textio(iter: Iterator[str], text_io_out: TextIO) -> None:
         text_io_out.write(line)
 
 def lines_iter_to_file(iter: Iterator[str], path: Path, mode: OpenTextModeWriting = "wt", encoding: str = "UTF-8", newline: str = "\n") -> None:
+    """
+    Write lines iterator into the file.
+    Expected, that the lines (from the iterator) have newlines
+    """
     with open(path, mode, encoding=encoding, newline=newline) as f:
         lines_iter_to_textio(iter, f)
 

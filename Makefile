@@ -10,6 +10,9 @@ COV_ARGS = $(if $(filter 1,$(COV)),--cov-report html:.pytest_htmlcov --cov=src,)
 test:
 	pytest $(COV_ARGS) tests
 
+test-e2e:
+	bash tests/test_sloppatch_cli/e2e.sh
+
 mypy:
 	mypy . --check-untyped-defs
 

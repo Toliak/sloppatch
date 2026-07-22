@@ -179,16 +179,14 @@ def apply_raw_patch_to_file(
     output_iterator = apply_patch(prepared_patch, input_io())
     
     if output_path or inline:
-        temp_path = file_path.parent / (file_path.name + ".tmp")
-        with open(temp_path, "wt", encoding="UTF-8", newline="\n") as f_output:
-            for line in output_iterator:
-                f_output.write(line)
+        output_file_temp = file_path.parent / (file_path.name + ".tmp")
+        lines_iter_to_file(output_iterator, output_file_temp)
                 
         if inline:
-            os.rename(temp_path, file_path)
+            os.rename(output_file_temp, file_path)
         else:
             assert output_path is not None
-            os.rename(temp_path, output_path)
+            os.rename(output_file_temp, output_path)
     else:
         for line in output_iterator:
             print(line, end="")
@@ -247,10 +245,7 @@ def cli_apply_sloppatch(args: Arguments, patch_config: PatchConfig) -> None:
         raise RuntimeError(f"Input '{args.input_file}' is not a file")
     if args.output_file and args.output_file.exists():
         raise RuntimeError(f"Output '{args.patch_file}' already exists. Specify '--inline' instead")
-    
-    output_file_temp = args.input_file.parent / (
-        args.input_file.name + "." + create_random_suffix()
-    )
+
     try:
         output_iterator = full_pipeline(
             input_get_io=lambda: file_to_lines_iter(args.input_file),
@@ -271,10 +266,10 @@ def cli_apply_sloppatch(args: Arguments, patch_config: PatchConfig) -> None:
         sys.exit(1)
 
     if args.output_file or args.inline:
+        output_file_temp = args.input_file.parent / (
+            args.input_file.name + "." + create_random_suffix()
+        )
         lines_iter_to_file(output_iterator, output_file_temp)
-        with open(output_file_temp, "wt", encoding="UTF-8", newline="\n") as f_output:
-            for line in output_iterator:
-                f_output.write(line)
 
         if args.inline:
             os.rename(output_file_temp, args.input_file)
