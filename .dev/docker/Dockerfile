@@ -8,7 +8,6 @@ RUN [ -f "/etc/apt/apt.conf.d/docker-clean" ] && \
     mv /etc/apt/apt.conf.d/docker-clean /etc/apt/apt.conf.d/docker-clean.disabled || \
     true
 
-# TODO: check
 RUN --mount=type=cache,sharing=private,target=/var/cache/apt \
 \
     apt-get update -y --allow-releaseinfo-change && \
@@ -30,9 +29,9 @@ RUN U_NAME=$(uname -m) && \
     fi && \
     echo "$ARCH" > /tmp/arch
 
-ARG VSCODE_VERSION
-
 COPY ./overlay/vscode/cli.sh ./overlay/vscode/server.sh     /opt/vscode/
+
+ARG VSCODE_VERSION
 RUN if [ -n "${VSCODE_VERSION}" ]; then \
         bash /opt/vscode/cli.sh "${VSCODE_VERSION}" "$(cat /tmp/arch)" && \
         bash /opt/vscode/server.sh "${VSCODE_VERSION}" "$(cat /tmp/arch)"; \
@@ -64,7 +63,6 @@ RUN --mount=type=cache,sharing=private,target=/var/cache/apt \
         ca-certificates
 
 ARG MCE_VERSION
-
 RUN if [ -n "${MCE_VERSION}" ]; then \
         curl -L "https://github.com/Toliak/MCE2/releases/download/v${MCE_VERSION}/mce-linux-amd64" --output /tmp/mce && \
         chmod +x /tmp/mce && \
@@ -126,16 +124,22 @@ RUN CURRENT_SHELL=$(getent passwd $(whoami) | cut -d: -f7) && \
 RUN mkdir -p /run/sshd && \
     ssh-keygen -A
 
-COPY --from=vscode-server /root/.vscode-server /home/"${USERNAME}"/.vscode-server
-RUN chown "${USER_UID}:${USER_GID}" -R /home/"${USERNAME}"/.vscode-server
+COPY --from=vscode-server /root/.vscode-server "/home/${USERNAME}/.vscode-server"
+RUN chown "${USER_UID}:${USER_GID}" -R "/home/${USERNAME}/.vscode-server"
 
-# Initialize the shell (if base_image has something to initialize)
-USER "${USER_NAME}"
+# Initialize the shell (if base_image has something to initialize) and add ssh key
+USER "${USERNAME}"
+
+ARG SSH_PUB_KEY
+RUN if [ -n "${SSH_PUB_KEY}" ]; then \
+        mkdir -p "/home/${USERNAME}/.ssh" && \
+        chmod 700 "/home/${USERNAME}/.ssh" && \
+        echo "${SSH_PUB_KEY}" > "/home/${USERNAME}/.ssh/authorized_keys"; \
+    fi
+
 RUN CURRENT_SHELL=$(getent passwd $(whoami) | cut -d: -f7) && \
     "$CURRENT_SHELL" -i -c 'echo'
 
-# Expose SSH port
-EXPOSE 22
-
 USER root
+EXPOSE 22
 CMD ["/usr/sbin/sshd", "-De", "-o", "LogLevel=VERBOSE"]

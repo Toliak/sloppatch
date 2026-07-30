@@ -1,4 +1,4 @@
-.PHONY: .env
+.PHONY: docker-up docker-build
 
 DOCKER_ENV := BUILDKIT_PROGRESS=plain
 DOCKER_DIR := .

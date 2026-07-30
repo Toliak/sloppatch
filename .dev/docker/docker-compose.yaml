@@ -9,6 +9,7 @@ services:
         PASSWORD: ${PASSWORD:?Not specified}
         USER_UID: ${USER_UID:?Not specified}
         USER_GID: ${USER_GID:?Not specified}
+        SSH_PUB_KEY: ${SSH_PUB_KEY:-}
         MCE_VERSION: ${MCE_VERSION:-}
         VSCODE_VERSION: ${VSCODE_VERSION:-}
     ports:
