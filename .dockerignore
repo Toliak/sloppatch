@@ -1,3 +1,4 @@
+# From .gitignore
 __pycache__
 .venv*
 .mypy_cache
@@ -9,3 +10,10 @@ build
 .pytest_htmlcov
 .coverage
 .bin
+
+# Must not be in docker image
+.dev
+.vscode
+.git
+docker
+*.md

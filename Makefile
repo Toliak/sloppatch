@@ -1,4 +1,4 @@
-.PHONY: test mypy ruff ruff-format docker-dev-up docker-dev-build .venv
+.PHONY: test test-e2e mypy ruff ruff-format build-whl  build-whl-deps  build-pyinstaller
 
 .venv:
 	python3 -m venv .venv
@@ -21,3 +21,12 @@ ruff:
 
 ruff-format:
 	ruff format .
+
+build-whl:
+	python -m build
+
+build-whl-deps:
+	pip wheel . --wheel-dir=dist
+
+build-pyinstaller:
+	pyinstaller --onefile $$(which sloppatch) --distpath ./bin
