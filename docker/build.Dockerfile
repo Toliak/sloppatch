@@ -1,5 +1,5 @@
 ARG BASE_IMAGE="debian:trixie-20260610"
-FROM ${BASE_IMAGE} AS builder
+FROM ${BASE_IMAGE} AS preparer
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -26,6 +26,9 @@ COPY . /opt/workdir
 
 RUN cd /opt/workdir && \
     make .venv
+
+# ----------------------------------------
+FROM preparer AS builder
 
 RUN cd /opt/workdir && \
     . ./.venv/bin/activate && \
