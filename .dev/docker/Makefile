@@ -4,10 +4,13 @@ include .env
 REQUIRED_VARS := BASE_IMAGE USERNAME PASSWORD USER_UID USER_GID SSH_ADDR
 $(foreach var,$(REQUIRED_VARS),$(if $(value $(var)),,$(error $(var) is not set. Please set it in .env or export it)))
 
+# Trails are without hardcoded -1 and -2 uids
 USER_UID_PLUS_1 := $(shell expr $(USER_UID) + 1)
 USER_UID_MINUS_1 := $(shell expr $(USER_UID) - 1)
+USER_UID_TRAIL := $(shell expr 65536 - $(USER_UID) - 2 - 1)
 USER_GID_PLUS_1 := $(shell expr $(USER_GID) + 1)
 USER_GID_MINUS_1 := $(shell expr $(USER_GID) - 1)
+USER_GID_TRAIL := $(shell expr 65536 - $(USER_GID) - 2 - 1)
 
 # For docker/podman build
 BUILD_ARGS := \
@@ -30,12 +33,14 @@ PODMAN_ENV :=
 IMAGE_NAME := $(PROJECT_NAME)_dev
 CONTAINER_NAME := $(PROJECT_NAME)_dev-run
 
-SHARED_RUN_OPTS :=    --rm \
+SHARED_RUN_OPTS :=      --rm \
 						-it \
 						--security-opt label=disable \
+						--security-opt seccomp=unconfined \
 						--device /dev/fuse \
 						-e TERM=xterm-256color \
 						-p $(SSH_ADDR):22 \
+						-v ../..:/opt/workdir \
 						--name "$(CONTAINER_NAME)"
 
 SHARED_BUILD_OPTS :=    $(BUILD_ARGS) \
@@ -61,7 +66,6 @@ docker-up: .env docker-build
 	$(DOCKER_ENV) "$(DOCKER_BIN)" \
 				run \
 				$(SHARED_RUN_OPTS) \
-				-v ../..:/opt/workdir \
 				"$(IMAGE_NAME)"
 
 docker-stop: .env
@@ -92,15 +96,19 @@ podman-up: .env podman-build
 	$(PODMAN_ENV) "$(PODMAN_BIN)" \
 				run \
 				$(SHARED_RUN_OPTS) \
-				-v ../..:/opt/workdir \
+				\
 				--uidmap $(USER_UID):0:1 \
 				--uidmap 0:1:$(USER_UID_MINUS_1) \
-				--uidmap 100000:$(USER_UID_PLUS_1):32768 \
+				--uidmap 100000:$(USER_UID_PLUS_1):$(USER_UID_TRAIL) \
 				--uidmap 65534:65534:1 \
+				--uidmap 65535:65535:1 \
+				\
 				--gidmap $(USER_GID):0:1 \
 				--gidmap 0:1:$(USER_GID_MINUS_1) \
-				--gidmap 100000:$(USER_GID_PLUS_1):32768 \
+				--gidmap 100000:$(USER_GID_PLUS_1):$(USER_GID_TRAIL) \
 				--gidmap 65534:65534:1 \
+				--gidmap 65535:65535:1 \
+				\
 				"$(IMAGE_NAME)"
 
 podman-stop: .env
