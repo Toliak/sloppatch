@@ -1,3 +1,5 @@
+# Must be docker & podman compatible!
+
 ARG BASE_IMAGE="nothing.local/check_your_env"
 FROM ${BASE_IMAGE} AS vscode-server
 
@@ -8,7 +10,7 @@ RUN [ -f "/etc/apt/apt.conf.d/docker-clean" ] && \
     mv /etc/apt/apt.conf.d/docker-clean /etc/apt/apt.conf.d/docker-clean.disabled || \
     true
 
-RUN --mount=type=cache,sharing=private,target=/var/cache/apt \
+RUN --mount=type=cache,sharing=locked,target=/var/cache/apt \
 \
     apt-get update -y --allow-releaseinfo-change && \
     apt-get install -y --no-install-recommends \
@@ -55,7 +57,7 @@ RUN [ -f "/etc/apt/apt.conf.d/docker-clean" ] && \
     mv /etc/apt/apt.conf.d/docker-clean /etc/apt/apt.conf.d/docker-clean.disabled || \
     true
 
-RUN --mount=type=cache,sharing=private,target=/var/cache/apt \
+RUN --mount=type=cache,sharing=locked,target=/var/cache/apt \
 \
     apt-get update -y --allow-releaseinfo-change && \
     apt-get install -y --no-install-recommends \
@@ -81,7 +83,7 @@ RUN [ -f "/etc/apt/apt.conf.d/docker-clean" ] && \
     mv /etc/apt/apt.conf.d/docker-clean /etc/apt/apt.conf.d/docker-clean.disabled || \
     true
 
-RUN --mount=type=cache,sharing=private,target=/var/cache/apt \
+RUN --mount=type=cache,sharing=locked,target=/var/cache/apt \
 \
     apt-get update -y --allow-releaseinfo-change && \
     apt-get install -y --no-install-recommends \
@@ -102,7 +104,12 @@ RUN --mount=type=cache,sharing=private,target=/var/cache/apt \
         zsh \
         tmux \
         git \
-        procps
+        procps \
+        podman \
+        fuse-overlayfs \
+        uidmap \
+        libcap2-bin
+
 
 RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
     locale-gen
@@ -126,6 +133,19 @@ RUN mkdir -p /run/sshd && \
 
 COPY --from=vscode-server /root/.vscode-server "/home/${USERNAME}/.vscode-server"
 RUN chown "${USER_UID}:${USER_GID}" -R "/home/${USERNAME}/.vscode-server"
+
+# For podman.
+# Add subuid and subgid.
+# Drop suid from new{u,g}idmap because it must be executed from the user that mapped to the host's subuid 0.
+COPY ./overlay/podman/etc-containers.conf /etc/containers/containers.conf
+COPY ./overlay/podman/user-containers.conf /home/"${USERNAME}"/.config/containers/containers.conf
+
+RUN echo "${USERNAME}:100000:32768" > /etc/subuid && \
+    echo "${USERNAME}:100000:32768" > /etc/subgid && \
+    chmod -s /usr/bin/newgidmap /usr/bin/newuidmap && \
+    setcap cap_setgid+ep /usr/bin/newgidmap && \
+    setcap cap_setuid+ep /usr/bin/newuidmap && \
+    chown "${USER_UID}:${USER_GID}" /home/"${USERNAME}"/.config/containers/
 
 # Initialize the shell (if base_image has something to initialize) and add ssh key
 USER "${USERNAME}"
