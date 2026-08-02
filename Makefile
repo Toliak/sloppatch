@@ -1,7 +1,9 @@
 .PHONY: test test-e2e mypy ruff ruff-format build-whl  build-whl-deps  build-pyinstaller
 
+PYTHON_BIN := python3
+
 .venv:
-	python3 -m venv .venv
+	$(PYTHON_BIN) -m venv .venv
 	.venv/bin/pip install -e .[dev]
 
 COV_ENABLED = $(and $(COV),$(filter-out 0,$(COV)))

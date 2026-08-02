@@ -1,4 +1,7 @@
-ARG BASE_IMAGE="debian:trixie-20260610"
+# Can be executed only via Podman
+
+# Bookworm, python 3.11 support, GLIBC 2.36
+ARG BASE_IMAGE="debian:bookworm-20260713"
 FROM ${BASE_IMAGE} AS preparer
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -8,7 +11,7 @@ RUN [ -f "/etc/apt/apt.conf.d/docker-clean" ] && \
     mv /etc/apt/apt.conf.d/docker-clean /etc/apt/apt.conf.d/docker-clean.disabled || \
     true
 
-RUN --mount=type=cache,sharing=private,target=/var/cache/apt \
+RUN --mount=type=cache,sharing=locked,target=/var/cache/apt \
 \
     apt-get update -y --allow-releaseinfo-change && \
     apt-get install -y --no-install-recommends \

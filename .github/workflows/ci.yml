@@ -7,10 +7,6 @@ on:
   pull_request:
     branches: [ "master" ]
 
-env:
-  DOCKER_BUILD_CONTEXT: "."
-  DOCKERFILE_PATH: "docker/build.Dockerfile"
-
 jobs:
   tests-and-lint:
     name: Tests & Lint
@@ -19,37 +15,37 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+      - name: Ensure Podman is installed
+        run: |
+          if ! command -v podman &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y podman
+          fi
+          podman --version
 
       - name: Build preparer stage only
         run: |
-          docker buildx build \
-            --file ${{ env.DOCKERFILE_PATH }} \
-            --target preparer \
-            --tag sloppatch-preparer:ci \
-            --load \
-            ${{ env.DOCKER_BUILD_CONTEXT }}
+          cd docker
+          make build-preparer
 
       - name: Run test
         run: |
-          docker run --rm sloppatch-preparer:ci \
-            sh -c "cd /opt/workdir && . ./.venv/bin/activate && make test"
+          cd docker
+          make ci CMD="test"
 
       - name: Run test-e2e
         run: |
-          docker run --rm sloppatch-preparer:ci \
-            sh -c "cd /opt/workdir && . ./.venv/bin/activate && make test-e2e"
+          cd docker
+          make ci CMD="test-e2e"
 
       - name: Run mypy
         run: |
-          docker run --rm sloppatch-preparer:ci \
-            sh -c "cd /opt/workdir && . ./.venv/bin/activate && make mypy"
+          cd docker
+          make ci CMD="mypy"
 
       - name: Run ruff
         run: |
-          docker run --rm sloppatch-preparer:ci \
-            sh -c "cd /opt/workdir && . ./.venv/bin/activate && make ruff"
+          cd docker
+          make ci CMD="ruff"
 
   release-build-and-upload:
     name: Release Build & Upload Artifacts
@@ -62,25 +58,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+      - name: Ensure Podman is installed
+        run: |
+          if ! command -v podman &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y podman
+          fi
+          podman --version
 
       - name: Build full image with target stage
         run: |
-          docker buildx build \
-            --file ${{ env.DOCKERFILE_PATH }} \
-            --output type=local,dest=./dist-release \
-            ${{ env.DOCKER_BUILD_CONTEXT }}
-
-      - name: Extract artifacts
-        run: |
-          mkdir -p artifacts/whl
-          mkdir -p artifacts/bin
-
-          find ./dist-release/opt/sloppatch/dist-only -type f -name "sloppatch*.whl" -exec cp {} artifacts/whl/ \;
-          cp ./dist-release/opt/sloppatch/bin/sloppatch artifacts/bin/
-
-          ls -R artifacts/
+          cd docker
+          make release
 
       - name: Create Release and Upload Assets
         uses: softprops/action-gh-release@v2
@@ -89,5 +77,4 @@ jobs:
           name: Release ${{ github.ref_name }}
           body: "Sloppatch release"
           files: |
-            artifacts/whl/*.whl
-            artifacts/bin/sloppatch
+            dist/release/*
