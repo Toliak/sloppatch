@@ -33,6 +33,8 @@ RUN U_NAME=$(uname -m) && \
 
 COPY ./overlay/vscode/cli.sh ./overlay/vscode/server.sh     /opt/vscode/
 
+RUN mkdir -p /root/.vscode-server
+
 ARG VSCODE_VERSION
 RUN if [ -n "${VSCODE_VERSION}" ]; then \
         bash /opt/vscode/cli.sh "${VSCODE_VERSION}" "$(cat /tmp/arch)" && \
@@ -116,47 +118,48 @@ RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
 
 COPY --from=mce-configs /etc/skel /etc/skel
 
-ARG USERNAME
-ARG PASSWORD
+ARG USER_NAME
+ARG USER_PASS
 ARG USER_UID
 ARG USER_GID
 
-# WARN: no sudo, `echo "$USERNAME ALL=(ALL) ALL" > "/etc/sudoers.d/$USERNAME" && \`
+# WARN: no sudo, `echo "$USER_NAME ALL=(ALL) ALL" > "/etc/sudoers.d/$USER_NAME" && \`
 RUN CURRENT_SHELL=$(getent passwd $(whoami) | cut -d: -f7) && \
     if [ -f /etc/skel/.zshrc ]; then CURRENT_SHELL=$(which zsh); fi; \
-    groupadd --gid "${USER_GID}" "${USERNAME}" && \
-    useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}" -s "$CURRENT_SHELL" && \
-    echo "${USERNAME}:${PASSWORD}" | chpasswd
+    groupadd --gid "${USER_GID}" "${USER_NAME}" && \
+    useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USER_NAME}" -s "$CURRENT_SHELL" && \
+    echo "${USER_NAME}:${USER_PASS}" | chpasswd
 
 RUN mkdir -p /run/sshd && \
     ssh-keygen -A
 
-COPY --from=vscode-server /root/.vscode-server "/home/${USERNAME}/.vscode-server"
-RUN chown "${USER_UID}:${USER_GID}" -R "/home/${USERNAME}/.vscode-server"
+COPY --from=vscode-server /root/.vscode-server "/home/${USER_NAME}/.vscode-server"
+RUN chown "${USER_UID}:${USER_GID}" -R "/home/${USER_NAME}/.vscode-server"
 
 # For podman.
 # Add subuid and subgid.
 # Drop suid from new{u,g}idmap because it must be executed from the user that mapped to the host's subuid 0.
 COPY ./overlay/podman/etc-containers.conf /etc/containers/containers.conf
-COPY ./overlay/podman/user-containers.conf /home/"${USERNAME}"/.config/containers/containers.conf
+COPY ./overlay/podman/user-containers.conf /home/"${USER_NAME}"/.config/containers/containers.conf
 
-RUN echo "${USERNAME}:100000:32768" > /etc/subuid && \
-    echo "${USERNAME}:100000:32768" > /etc/subgid && \
+RUN echo "${USER_NAME}:100000:32768" > /etc/subuid && \
+    echo "${USER_NAME}:100000:32768" > /etc/subgid && \
     chmod -s /usr/bin/newgidmap /usr/bin/newuidmap && \
     setcap cap_setgid+ep /usr/bin/newgidmap && \
     setcap cap_setuid+ep /usr/bin/newuidmap && \
-    chown "${USER_UID}:${USER_GID}" /home/"${USERNAME}"/.config/containers/
+    chown "${USER_UID}:${USER_GID}" /home/"${USER_NAME}"/.config/containers/
 
-# Initialize the shell (if base_image has something to initialize) and add ssh key
-USER "${USERNAME}"
+USER "${USER_NAME}"
 
+# Add ssh key
 ARG SSH_PUB_KEY
 RUN if [ -n "${SSH_PUB_KEY}" ]; then \
-        mkdir -p "/home/${USERNAME}/.ssh" && \
-        chmod 700 "/home/${USERNAME}/.ssh" && \
-        echo "${SSH_PUB_KEY}" > "/home/${USERNAME}/.ssh/authorized_keys"; \
+        mkdir -p "/home/${USER_NAME}/.ssh" && \
+        chmod 700 "/home/${USER_NAME}/.ssh" && \
+        echo "${SSH_PUB_KEY}" > "/home/${USER_NAME}/.ssh/authorized_keys"; \
     fi
 
+# Initialize the shell (if base_image has something to initialize) 
 RUN CURRENT_SHELL=$(getent passwd $(whoami) | cut -d: -f7) && \
     "$CURRENT_SHELL" -i -c 'echo'
 
