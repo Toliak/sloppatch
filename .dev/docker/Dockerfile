@@ -133,6 +133,8 @@ RUN CURRENT_SHELL=$(getent passwd $(whoami) | cut -d: -f7) && \
 RUN mkdir -p /run/sshd && \
     ssh-keygen -A
 
+COPY ./overlay/ssh/sshd_config /etc/ssh/sshd_config
+
 COPY --from=vscode-server /root/.vscode-server "/home/${USER_NAME}/.vscode-server"
 RUN chown "${USER_UID}:${USER_GID}" -R "/home/${USER_NAME}/.vscode-server"
 
