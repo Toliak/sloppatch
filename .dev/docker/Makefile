@@ -1,16 +1,11 @@
 include .env
 
 # Check .env
-REQUIRED_VARS := BASE_IMAGE USER_NAME USER_PASS USER_UID USER_GID SSH_ADDR PROJECT_NAME
+REQUIRED_VARS := BASE_IMAGE USER_NAME USER_PASS SSH_ADDR PROJECT_NAME
 $(foreach var,$(REQUIRED_VARS),$(if $(value $(var)),,$(error $(var) is not set. Please set it in .env or export it)))
 
-# Trails are without hardcoded -1 and -2 uids
-USER_UID_PLUS_1 := $(shell expr $(USER_UID) + 1)
-USER_UID_MINUS_1 := $(shell expr $(USER_UID) - 1)
-USER_UID_TRAIL := $(shell expr 65536 - $(USER_UID) - 2 - 1)
-USER_GID_PLUS_1 := $(shell expr $(USER_GID) + 1)
-USER_GID_MINUS_1 := $(shell expr $(USER_GID) - 1)
-USER_GID_TRAIL := $(shell expr 65536 - $(USER_GID) - 2 - 1)
+USER_UID := $(shell id -u)
+USER_GID := $(shell id -g)
 
 # For docker/podman build
 BUILD_ARGS := \
@@ -47,22 +42,19 @@ SHARED_BUILD_OPTS :=    $(BUILD_ARGS) \
 						-t "$(IMAGE_NAME)" \
 						-f ./Dockerfile
 
-.PHONY: docker-up docker-stop docker-build podman-up podman-stop podman-build
+PODMAN_RUN_MAP :=   --uidmap $(USER_UID):0:1 \
+					--uidmap 0:1:$(shell expr $(USER_UID) - 1) \
+					--uidmap 100000:$(shell expr $(USER_UID) +1 1):$(shell expr 65536 - $(USER_UID) - 2 - 1) \
+					--uidmap 65534:65534:2
 
+.PHONY: docker-up docker-stop docker-build podman-up podman-stop podman-build
 
 # ----------------------------------------
 
 all: podman-up
 
 .env:
-	@if [ -f .env ]; then \
-        echo ".env already exists, skipping."; \
-    else \
-        echo "Creating .env from template..."; \
-        cp .env.template .env; \
-        sed -i 's/^USER_UID=.*/USER_UID=$(CURRENT_UID)/' .env; \
-        sed -i 's/^USER_GID=.*/USER_GID=$(CURRENT_GID)/' .env; \
-    fi
+	@test -f .env || (echo "Error: File '.env' does not exist" && exit 1)
 
 # ----------------------------------------
 
@@ -98,24 +90,10 @@ podman-up: .env podman-build
 	@echo "Run (podman) dev container with:"
 	@echo "  SSH_ADDR: $(SSH_ADDR)"
 
-# 	--userns=keep-id \
-
 	$(PODMAN_ENV) "$(PODMAN_BIN)" \
 				run \
 				$(SHARED_RUN_OPTS) \
-				\
-				--uidmap $(USER_UID):0:1 \
-				--uidmap 0:1:$(USER_UID_MINUS_1) \
-				--uidmap 100000:$(USER_UID_PLUS_1):$(USER_UID_TRAIL) \
-				--uidmap 65534:65534:1 \
-				--uidmap 65535:65535:1 \
-				\
-				--gidmap $(USER_GID):0:1 \
-				--gidmap 0:1:$(USER_GID_MINUS_1) \
-				--gidmap 100000:$(USER_GID_PLUS_1):$(USER_GID_TRAIL) \
-				--gidmap 65534:65534:1 \
-				--gidmap 65535:65535:1 \
-				\
+				$(PODMAN_RUN_MAP)\
 				"$(IMAGE_NAME)"
 
 podman-stop: .env
