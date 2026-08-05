@@ -42,10 +42,16 @@ SHARED_BUILD_OPTS :=    $(BUILD_ARGS) \
 						-t "$(IMAGE_NAME)" \
 						-f ./Dockerfile
 
+# WARN: do not unify uidmap and gidmap, because UID and GID may differ
 PODMAN_RUN_MAP :=   --uidmap $(USER_UID):0:1 \
-					--uidmap 0:1:$(shell expr $(USER_UID) - 1) \
-					--uidmap 100000:$(shell expr $(USER_UID) +1 1):$(shell expr 65536 - $(USER_UID) - 2 - 1) \
-					--uidmap 65534:65534:2
+					--uidmap 0:1:$(shell expr $(USER_UID)) \
+					--uidmap 100000:$(shell expr $(USER_UID) + 1):$(shell expr 65536 - $(USER_UID) - 2 - 1) \
+					--uidmap 65534:65534:2 \
+					\
+					--gidmap $(USER_GID):0:1 \
+					--gidmap 0:1:$(shell expr $(USER_GID)) \
+					--gidmap 100000:$(shell expr $(USER_GID) + 1):$(shell expr 65536 - $(USER_GID) - 2 - 1) \
+					--gidmap 65534:65534:2
 
 .PHONY: docker-up docker-stop docker-build podman-up podman-stop podman-build
 
