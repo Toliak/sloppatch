@@ -28,14 +28,14 @@ PODMAN_ENV :=
 IMAGE_NAME := $(PROJECT_NAME)_dev
 CONTAINER_NAME := $(PROJECT_NAME)_dev-run
 
-SHARED_RUN_OPTS :=      --rm \
+SHARED_RUN_OPTS := 		--rm \
 						-it \
 						--security-opt label=disable \
-						--security-opt seccomp=unconfined \
 						--device /dev/fuse \
 						-e TERM=xterm-256color \
-						-p $(SSH_ADDR):22 \
-						-v ../..:/opt/workdir \
+						-p "$(SSH_ADDR):22" \
+						-v "$$PWD/../..:/opt/workdir" \
+						-v "$$HOME/.local/share/containers/storage:/var/lib/shared" \
 						--name "$(CONTAINER_NAME)"
 
 SHARED_BUILD_OPTS :=    $(BUILD_ARGS) \
@@ -60,7 +60,11 @@ PODMAN_RUN_MAP :=   --uidmap $(USER_UID):0:1 \
 all: podman-up
 
 .env:
-	@test -f .env || (echo "Error: File '.env' does not exist" && exit 1)
+	@test -f .env || (echo "Not found, '.env' file. Copy default")
+	cp .env.template .env
+
+# Or
+# @test -f .env || (echo "ERROR: $@ file is missing. Manual configuration required" && exit 1)
 
 # ----------------------------------------
 

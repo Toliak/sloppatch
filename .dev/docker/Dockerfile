@@ -141,15 +141,18 @@ RUN chown "${USER_UID}:${USER_GID}" -R "/home/${USER_NAME}/.vscode-server"
 # For podman.
 # Add subuid and subgid.
 # Drop suid from new{u,g}idmap because it must be executed from the user that mapped to the host's subuid 0.
-COPY ./overlay/podman/etc-containers.conf /etc/containers/containers.conf
-COPY ./overlay/podman/user-containers.conf /home/"${USER_NAME}"/.config/containers/containers.conf
+COPY ./overlay/podman/etc /etc/containers
+COPY ./overlay/podman/user /home/"${USER_NAME}"/.config/containers
 
-RUN echo "${USER_NAME}:100000:32768" > /etc/subuid && \
-    echo "${USER_NAME}:100000:32768" > /etc/subgid && \
+# Add non-root uids as subuid. 
+# That increases chances to run a container from the additional-image-store without issues
+RUN echo "${USER_NAME}:100000:32768\n${USER_NAME}:1:$((USER_UID - 1))" > /etc/subuid && \
+    cp /etc/subuid /etc/subgid && \
     chmod -s /usr/bin/newgidmap /usr/bin/newuidmap && \
     setcap cap_setgid+ep /usr/bin/newgidmap && \
     setcap cap_setuid+ep /usr/bin/newuidmap && \
-    chown "${USER_UID}:${USER_GID}" /home/"${USER_NAME}"/.config/containers/
+    chown -R "${USER_UID}:${USER_GID}" /home/"${USER_NAME}"/.config/containers/ && \
+    mkdir -p /var/lib/shared
 
 USER "${USER_NAME}"
 
