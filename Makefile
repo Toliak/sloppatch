@@ -2,12 +2,20 @@
 
 PYTHON_BIN := python3
 
+# ---------------------------
+
+all: prepare-dev
+
 .venv:
 	$(PYTHON_BIN) -m venv .venv
+
+prepare-dev: .venv
 	.venv/bin/pip install -e .[dev]
 
+# ---------------------------
+
 COV_ENABLED = $(and $(COV),$(filter-out 0,$(COV)))
-COV_ARGS = $(if $(filter 1,$(COV)),--cov-report html:.pytest_htmlcov --cov=src,)
+COV_ARGS = $(if $(filter 1,$(COV_ENABLED)),--cov-report html:.pytest_htmlcov --cov=src,)
 
 test:
 	pytest $(COV_ARGS) tests
