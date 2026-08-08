@@ -4,15 +4,21 @@ PODMAN_JOBS := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || ech
 
 PROJECT_DIR := ..
 
+# buildah's `userns-uid-map` does not recognize /etc/subuid and /etc/subgid uid mapping,
+# so it does not automatically split the uids (if I specify 1:1:10000, it will try to allocate
+# 10000 contiguous uids even if there are multiple entries in /etc/subuid).
+# Therefore, only necessary UIDs are specified here.
+# This looks like an issue, but I am a bit too busy to reproduce it on the latest podman and report it.
+# https://chatgpt.com/s/t_6a771f6240648191abc735edfff8b467
 USERNS_ARGS = \
   --userns-uid-map=0:0:1 \
-  --userns-uid-map=1:1:1999 \
-  --userns-uid-map=65534:2000:2
+  --userns-uid-map=1:1:50 \
+  --userns-uid-map=1000:51:1 \
+  --userns-uid-map=65534:52:2
 
 USERNS_RUN_ARGS = \
-  --uidmap=0:0:1 \
-  --uidmap=1:1:1999 \
-  --uidmap=65534:2000:2
+  --uidmap=0:0:1001 \
+  --uidmap=65534:1001:1
 
 BUILD_SHARED_CMD := $(PODMAN_BIN) build \
 					$(USERNS_ARGS) \
