@@ -6,7 +6,7 @@ from pathlib import Path
 import random
 import string
 import sys
-from typing import Dict, Iterator, List, Optional, Tuple, get_args, get_type_hints
+from typing import Iterator, List, Optional, Tuple, get_args, get_type_hints
 
 from sloppatch.config import ParseConfig, PatchConfig
 from sloppatch.error import SloppatchError
@@ -14,7 +14,7 @@ from sloppatch.file import file_to_lines_iter, full_pipeline, lines_iter_to_file
 from sloppatch.patch.apply import apply_patch
 from sloppatch.patch.convert import raw_patch_convert
 from sloppatch.patch.prepare_by_file import ValidatePatchLinesSimilarityError, prepare_file_cache, prepare_patch_final
-from sloppatch.patch.raw_parse_data import RawAct, RawHunk, RawPatch
+from sloppatch.patch.raw_parse_data import RawAct, RawHunk
 from .unified import parse_unified_diff_to_raw_patches
 
 # SCRIPT_DIR = Path(__file__).parent
@@ -158,6 +158,9 @@ def _act_to_char(act: RawAct) -> str:
         case RawAct.Delete:
             return '-'
 
+# TODO: split this function into the two functions:
+# - apply raw patch to temporary file
+# - move all the files into their correct positions, if everything is correct
 
 def apply_raw_patch_to_file(
     file_path: Path, 
@@ -172,7 +175,8 @@ def apply_raw_patch_to_file(
     """
     patch_conv = raw_patch_convert(raw_patch, parse_config, patch_config)
     
-    input_io = lambda: file_to_lines_iter(file_path)
+    def input_io() -> Iterator[str]:
+        return file_to_lines_iter(file_path)
                 
     file_cache = prepare_file_cache(patch_conv, patch_config, input_io())
     prepared_patch = prepare_patch_final(patch_conv, file_cache, patch_config)
@@ -226,6 +230,8 @@ def cli_apply_unified(args: Arguments, patch_config: PatchConfig) -> None:
                 # Default to inline if no output directory is specified to avoid dumping mixed files to stdout
                 inline=args.inline or (args.output_file is None)
             )
+
+            # TODO: reject ALL files if something failed
         except ValidatePatchLinesSimilarityError as e:
             print("Error while applying patch", file=sys.stderr)
             print(str(e), file=sys.stderr)

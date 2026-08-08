@@ -37,3 +37,7 @@ include-package-data = true
 [tool.setuptools.packages.find]
 where = ["src"] # Look for packages inside the src directory
 include = ["sloppatch*"] # Include the sloppatch package and its submodules
+
+[tool.mypy]
+check_untyped_defs = true
+warn_return_any = true

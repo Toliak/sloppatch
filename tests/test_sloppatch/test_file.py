@@ -368,7 +368,7 @@ def test_full_pipeline_empty_file() -> None:
     )
 
     with pytest.raises(ValidatePatchLinesError, match='Empty file'):
-        output_iterator = _output_iterator(
+        _output_iterator(
             "",
             patch_content,
             cfg=config,

@@ -5,9 +5,7 @@ RawPatch text into the Patch (ready to apply over a file).
 Without knowledge of the target file.
 """
 
-import dataclasses
-import re
-from typing import List, Optional, Tuple, assert_never
+from typing import List, Optional, Tuple
 
 from .util_mask import line_to_mask
 
@@ -15,7 +13,6 @@ from .convert_data import BeforeLine, Hunk, HunkLine, Patch
 from ..utils.types import LineNmb
 
 from .raw_parse_data import RawHunk, RawPatch
-from ..utils.misc import ANY_WHITESPACE_RE
 
 from ..error import SloppatchError
 from ..config import (

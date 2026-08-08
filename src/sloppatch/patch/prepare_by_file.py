@@ -6,7 +6,7 @@ Applying to the file.
 """
 
 import dataclasses
-from typing import Iterable, Iterator, List, Optional, Tuple, assert_never
+from typing import Iterable, List, Optional, Tuple, assert_never
 
 from sloppatch.patch.util_mask import line_to_mask
 

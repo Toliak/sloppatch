@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Iterator, Optional, TextIO
+from typing import Callable, Iterator, Optional, TextIO
 
 from sloppatch.utils.types import OpenTextModeReading, OpenTextModeWriting
 

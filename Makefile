@@ -24,7 +24,7 @@ test-e2e:
 	bash tests/test_sloppatch_cli/e2e.sh
 
 mypy:
-	mypy . --check-untyped-defs
+	mypy .
 
 ruff:
 	ruff check .

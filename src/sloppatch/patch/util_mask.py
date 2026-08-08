@@ -1,7 +1,7 @@
 import re
 from sloppatch.config import PatchConfig
 from sloppatch.utils.misc import ANY_WHITESPACE_RE
-from typing import List, Optional, Tuple, assert_never
+from typing import assert_never
 
 
 def line_to_mask(line: str, cfg: PatchConfig) -> str:
