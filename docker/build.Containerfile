@@ -28,7 +28,7 @@ RUN --mount=type=cache,sharing=locked,target=/var/cache/apt \
 COPY . /opt/workdir
 
 RUN cd /opt/workdir && \
-    make .venv
+    make prepare-dev
 
 # ----------------------------------------
 FROM preparer AS builder
